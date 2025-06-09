@@ -3,10 +3,10 @@
     <!-- Model Selector -->
     <div class="border-b p-4">
       <Select v-model="selectedModel">
-        <SelectTrigger class="w-48">
+        <SelectTrigger class="w-48 bg-background/60 backdrop-blur-lg border border-border/40 hover:bg-background/80 focus:bg-background/80 transition-all duration-200 shadow-lg rounded-lg">
           <SelectValue placeholder="Select model" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent class="bg-background/80 backdrop-blur-xl border border-border/40 shadow-xl">
           <SelectGroup>
             <SelectLabel>OpenAI</SelectLabel>
             <SelectItem value="gpt-4o">GPT-4o</SelectItem>
@@ -26,7 +26,7 @@
 
     <!-- Messages Area -->
     <ScrollArea class="flex-1 p-4 min-h-0">
-      <div class="space-y-4 max-w-4xl mx-auto">
+      <div class="space-y-4 max-w-4xl mx-auto pb-24">
         <div v-if="messages.length === 0" class="text-center py-12">
           <Icon name="lucide:message-circle" class="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <h3 class="text-lg font-medium mb-2">Start a conversation</h3>
@@ -49,32 +49,6 @@
         />
              </div>
     </ScrollArea>
-
-    <!-- Input Area -->
-    <div class="border-t p-4">
-      <form @submit.prevent="sendMessage" class="max-w-4xl mx-auto">
-        <div class="flex gap-3">
-          <Textarea
-            ref="textareaRef"
-            v-model="inputMessage"
-            placeholder="Type your message..."
-            :disabled="isLoading"
-            class="flex-1 min-h-[48px] max-h-[200px] resize-none"
-            @keydown.enter.exact.prevent="sendMessage"
-            @keydown.enter.shift.exact.prevent="addNewLine"
-          />
-          <Button 
-            type="submit" 
-            :disabled="!inputMessage.trim() || isLoading"
-            size="icon"
-            class="self-end"
-          >
-            <Icon v-if="isLoading" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
-            <Icon v-else name="lucide:send" class="w-4 h-4" />
-          </Button>
-        </div>
-      </form>
-    </div>
   </div>
 </template>
 
@@ -100,6 +74,7 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{
   conversationCreated: [conversationId: string]
+  sendMessage: [message: string]
 }>()
 
 const selectedModel = ref('gpt-4o-mini')
@@ -242,5 +217,23 @@ onMounted(() => {
       textarea.focus()
     }
   })
+})
+
+// Expose methods for parent component
+defineExpose({
+  sendMessage,
+  addNewLine,
+  focusInput: () => {
+    nextTick(() => {
+      const textarea = textareaRef.value?.$el || textareaRef.value
+      if (textarea && textarea.focus) {
+        textarea.focus()
+      }
+    })
+  },
+  inputMessage,
+  isLoading,
+  textareaRef,
+  selectedModel
 })
 </script> 
