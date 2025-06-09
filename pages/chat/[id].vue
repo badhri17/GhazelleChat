@@ -10,7 +10,8 @@
 
       <!-- Main Chat Area -->
       <SidebarInset>
-        <header class="border-b px-4 py-3 flex justify-between items-center">
+        <!-- Sticky Header -->
+        <header class="sticky top-0 z-40 border-b px-4 py-3 flex justify-between items-center bg-background/95 backdrop-blur-sm">
           <div class="flex items-center gap-2">
             <SidebarTrigger />
             <h2 class="font-semibold">
@@ -20,6 +21,7 @@
           <ThemeToggle />
         </header>
 
+        <!-- Content -->
         <div class="flex flex-col h-full">
           <div class="flex-1 overflow-hidden">
             <ChatInterface 

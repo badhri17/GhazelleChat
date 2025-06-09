@@ -6,7 +6,8 @@
 
       <!-- Main Chat Area -->
       <SidebarInset>
-        <header class="border-b px-4 py-3 flex justify-between items-center">
+        <!-- Sticky Header -->
+        <header class="sticky top-0 z-40 border-b px-4 py-3 flex justify-between items-center bg-background/95 backdrop-blur-sm">
           <div class="flex items-center gap-2">
             <SidebarTrigger />
             <h2 class="font-semibold">New Conversation</h2>
@@ -14,6 +15,7 @@
           <ThemeToggle />
         </header>
 
+        <!-- Content -->
         <div class="flex flex-col h-full">
           <div class="flex-1 overflow-hidden">
             <ChatInterface 
@@ -27,7 +29,7 @@
       </SidebarInset>
 
       <!-- Fixed Glossy Input Area -->
-      <div class="fixed bottom-0 right-0  left-0">
+      <div class="fixed bottom-0 right-0 z-50 p-4 transition-all duration-200 md:left-[var(--sidebar-width)] left-0">
         <div class="">
           <form @submit.prevent="handleSendMessage" class="max-w-4xl mx-auto p-4">
             <div class="flex gap-3">
@@ -36,7 +38,7 @@
                 v-model="inputMessage"
                 placeholder="Type your message..."
                 :disabled="isLoading"
-                class="flex-1 min-h-[48px] max-h-[200px] resize-none bg-background/60 backdrop-blur-lg border border-border/40 focus:bg-background/80 focus:border-border/60 transition-all duration-200 shadow-lg rounded-lg"
+                class="flex-1 min-h-[48px] max-h-[200px] resize-none bg-background/60 backdrop-blur-lg border border-border/40 focus:bg-background/80 focus:border-border/60 transition-all duration-200  rounded-lg"
                 @keydown.enter.exact.prevent="handleSendMessage"
                 @keydown.enter.shift.exact.prevent="handleAddNewLine"
               />
