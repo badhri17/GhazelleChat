@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full">
+  <div class="flex flex-col h-full overflow-hidden">
     <!-- Model Selector -->
     <div class="border-b p-4">
       <Select v-model="selectedModel">
@@ -25,7 +25,7 @@
     </div>
 
     <!-- Messages Area -->
-    <ScrollArea class="flex-1 p-4">
+    <ScrollArea class="flex-1 p-4 min-h-0">
       <div class="space-y-4 max-w-4xl mx-auto">
         <div v-if="messages.length === 0" class="text-center py-12">
           <Icon name="lucide:message-circle" class="w-12 h-12 mx-auto text-muted-foreground mb-4" />

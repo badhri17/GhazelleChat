@@ -3,9 +3,9 @@
     <!-- Avatar -->
     <div 
       v-if="message.role === 'assistant'"
-      class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0"
+      class="rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0"
     >
-      <Icon name="lucide:bot" class="w-4 h-4 text-primary" />
+      
     </div>
 
     <!-- Message Content -->
@@ -52,9 +52,8 @@
     <!-- User Avatar -->
     <div 
       v-if="message.role === 'user'"
-      class="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0"
+      class="rounded-full bg-secondary flex items-center justify-center flex-shrink-0"
     >
-      <Icon name="lucide:user" class="w-4 h-4 text-secondary-foreground" />
     </div>
   </div>
 </template>
