@@ -78,7 +78,7 @@
               <Icon name="lucide:credit-card" class="w-4 h-4 mr-2" />
               Billing
             </DropdownMenuItem>
-            <DropdownMenuItem class="cursor-pointer">
+            <DropdownMenuItem @click="openSettings" class="cursor-pointer">
               <Icon name="lucide:settings" class="w-4 h-4 mr-2" />
               Settings
             </DropdownMenuItem>
@@ -101,6 +101,13 @@
       </div>
     </SidebarFooter>
   </Sidebar>
+
+  <!-- Settings Dialog Component -->
+  <SettingsDialog 
+    v-model:open="settingsOpen" 
+    :user="user" 
+    @logout="logout"
+  />
 </template>
 
 <script setup lang="ts">
@@ -126,6 +133,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+
 interface User {
   id: string
   email: string
@@ -145,6 +153,12 @@ interface Props {
 }
 
 defineProps<Props>()
+
+const settingsOpen = ref(false)
+
+function openSettings() {
+  settingsOpen.value = true
+}
 
 async function logout() {
   try {
