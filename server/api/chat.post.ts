@@ -11,7 +11,7 @@ import { lucia } from '~/server/plugins/lucia'
 
 const chatSchema = z.object({
   message: z.string().min(1),
-  conversationId: z.string().optional(),
+  conversationId: z.string().nullable().optional(),
   model: z.enum(['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet-latest', 'llama-3.1-70b-versatile']).default('gpt-4o-mini')
 })
 

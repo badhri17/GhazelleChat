@@ -11,18 +11,20 @@
     
     <SidebarContent>
       <SidebarGroup v-if="user">
-        <SidebarGroupLabel>Conversations</SidebarGroupLabel>
-        <SidebarGroupAction>
-          <Button @click="() => navigateTo('/chat')" size="sm" class="w-full" variant="outline">
+        <!-- Prominent New Chat Button -->
+        <div class="p-2 pb-2">
+          <Button @click="() => navigateTo('/chat')" class="w-full bg-primary hover:bg-primary/90 text-primary-foreground " :size="'sm'">
             <Icon name="lucide:plus" class="w-4 h-4 mr-2" />
             New Chat
           </Button>
-        </SidebarGroupAction>
+        </div>
+        
+        <SidebarGroupLabel class="px-4">Conversations</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             <div v-if="conversations.length === 0" class="text-sm text-muted-foreground text-center py-8 px-4">
               No conversations yet.<br>
-              <NuxtLink to="/chat" class="text-primary hover:underline">Start a new chat!</NuxtLink>
+              <span class="text-primary">Click "New Chat" above to get started!</span>
             </div>
             
             <SidebarMenuItem v-for="conversation in conversations" :key="conversation.id">
@@ -49,10 +51,53 @@
     
     <SidebarFooter v-if="user" class="p-4 border-t">
       <div class="flex items-center justify-between">
-        <div class="text-sm font-medium">{{ user.email }}</div>
-        <Button @click="logout" variant="outline" size="sm">
-          Logout
-        </Button>
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+          <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+            <Icon name="lucide:user" class="w-4 h-4 text-primary" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-medium truncate">{{ user.email }}</div>
+            <div class="text-xs text-muted-foreground">Free Plan</div>
+          </div>
+        </div>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button variant="ghost" size="sm" class="h-8 w-8 p-0">
+              <Icon name="lucide:more-horizontal" class="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="w-56">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem class="cursor-pointer">
+              <Icon name="lucide:user" class="w-4 h-4 mr-2" />
+              Account
+            </DropdownMenuItem>
+            <DropdownMenuItem class="cursor-pointer">
+              <Icon name="lucide:credit-card" class="w-4 h-4 mr-2" />
+              Billing
+            </DropdownMenuItem>
+            <DropdownMenuItem class="cursor-pointer">
+              <Icon name="lucide:settings" class="w-4 h-4 mr-2" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem class="cursor-pointer">
+              <Icon name="lucide:bell" class="w-4 h-4 mr-2" />
+              Notifications
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem class="cursor-pointer">
+              <Icon name="lucide:crown" class="w-4 h-4 mr-2" />
+              Upgrade to Pro
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem @click="logout" class="cursor-pointer text-red-600 focus:text-red-600">
+              <Icon name="lucide:log-out" class="w-4 h-4 mr-2" />
+              Log out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </SidebarFooter>
   </Sidebar>
@@ -72,6 +117,14 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 interface User {
   id: string

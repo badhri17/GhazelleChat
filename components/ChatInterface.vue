@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-full overflow-hidden">
+  <div class="flex flex-col h-full overflow-hidden relative">
     <!-- Model Selector -->
     <div class="border-b p-4">
       <Select v-model="selectedModel">
@@ -47,7 +47,7 @@
           :message="streamingMessage"
           :is-streaming="true"
         />
-             </div>
+      </div>
     </ScrollArea>
   </div>
 </template>
