@@ -39,7 +39,7 @@
         size="icon"
         class="absolute top-1 right-1 w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
       >
-        <Icon name="lucide:copy" class="w-3 h-3" />
+        <Icon name="lucide:copy" class="w-3 h-3 cursor-pointer" />
       </Button>
     </div>
 

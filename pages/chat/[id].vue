@@ -14,11 +14,14 @@
         <header class="sticky top-0 z-40 border-b px-4 py-3 flex justify-between items-center bg-background/95 backdrop-blur-sm">
           <div class="flex items-center gap-2">
             <SidebarTrigger />
-            <h2 class="font-semibold">
+            <h2 class="font-semibold mr-2 text-base">
               {{ conversation?.title || 'Chat' }}
             </h2>
+            <ModelSelector v-model="selectedModel" />
           </div>
-          <ThemeToggle />
+          <div class="flex items-center gap-4">
+            <ThemeToggle />
+          </div>
         </header>
 
         <!-- Content -->
@@ -28,39 +31,19 @@
               ref="chatInterfaceRef"
               :conversation-id="conversationId"
               :user="user"
+              v-model="selectedModel"
               @conversation-created="handleConversationCreated"
             />
           </div>
         </div>
       </SidebarInset>
 
-      <!-- Fixed Glossy Input Area -->
-      <div class="fixed bottom-0 right-0 z-50 p-4 transition-all duration-200 md:left-[var(--sidebar-width)] left-0">
-        <div class="">
-          <form @submit.prevent="handleSendMessage" class="max-w-4xl mx-auto p-4">
-            <div class="flex gap-3">
-              <Textarea
-                ref="mainTextareaRef"
-                v-model="inputMessage"
-                placeholder="Type your message..."
-                :disabled="isLoading"
-                class="flex-1 min-h-[48px] max-h-[200px] resize-none bg-background/60 backdrop-blur-lg border border-border/40 focus:bg-background/80 focus:border-border/60 transition-all duration-200  rounded-lg"
-                @keydown.enter.exact.prevent="handleSendMessage"
-                @keydown.enter.shift.exact.prevent="handleAddNewLine"
-              />
-              <Button 
-                type="submit" 
-                :disabled="!inputMessage.trim() || isLoading"
-                size="icon"
-                class="self-end bg-primary/70 backdrop-blur-lg hover:bg-primary/90 border border-primary/30 shadow-lg transition-all duration-200 rounded-lg"
-              >
-                <Icon v-if="isLoading" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
-                <Icon v-else name="lucide:send" class="w-4 h-4" />
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
+      <!-- Chat Input -->
+      <ChatInput 
+        v-model="inputMessage"
+        :is-loading="isLoading"
+        @send-message="handleSendMessage"
+      />
     </div>
   </SidebarProvider>
 </template>
@@ -71,6 +54,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar'
+import ModelSelector from '@/components/ModelSelector.vue'
 
 interface User {
   id: string
@@ -118,9 +102,10 @@ const conversation = computed(() => {
 })
 
 const chatInterfaceRef = ref()
-const mainTextareaRef = ref()
 const inputMessage = ref('')
 const isLoading = ref(false)
+const selectedModel = ref('gpt-4o-mini')
+
 
 // Watch for loading state changes from ChatInterface
 watch(() => chatInterfaceRef.value?.isLoading, (newVal) => {
@@ -139,24 +124,16 @@ function handleAddNewLine() {
   inputMessage.value += '\n'
 }
 
-function handleSendMessage() {
-  if (chatInterfaceRef.value && inputMessage.value.trim()) {
+function handleSendMessage(message: string) {
+  if (chatInterfaceRef.value && message.trim()) {
     // Set the input message in the chat interface and trigger send
-    chatInterfaceRef.value.inputMessage = inputMessage.value
+    chatInterfaceRef.value.inputMessage = message
     chatInterfaceRef.value.sendMessage()
     inputMessage.value = ''
   }
 }
 
-// Auto-focus textarea on mount
-onMounted(() => {
-  nextTick(() => {
-    const textarea = mainTextareaRef.value?.$el || mainTextareaRef.value
-    if (textarea && textarea.focus) {
-      textarea.focus()
-    }
-  })
-})
+
 
 // Set page title based on conversation
 useHead({

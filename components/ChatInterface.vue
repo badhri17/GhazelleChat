@@ -1,28 +1,6 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden relative">
-    <!-- Model Selector -->
-    <div class="border-b p-4">
-      <Select v-model="selectedModel">
-        <SelectTrigger class="w-48 bg-background/60 backdrop-blur-lg border border-border/40 hover:bg-background/80 focus:bg-background/80 transition-all duration-200 shadow-lg rounded-lg">
-          <SelectValue placeholder="Select model" />
-        </SelectTrigger>
-        <SelectContent class="bg-background/80 backdrop-blur-xl border border-border/40 shadow-xl">
-          <SelectGroup>
-            <SelectLabel>OpenAI</SelectLabel>
-            <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-            <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-          </SelectGroup>
-          <SelectGroup>
-            <SelectLabel>Anthropic</SelectLabel>
-            <SelectItem value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet</SelectItem>
-          </SelectGroup>
-          <SelectGroup>
-            <SelectLabel>Groq</SelectLabel>
-            <SelectItem value="llama-3.1-70b-versatile">Llama 3.1 70B</SelectItem>
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-    </div>
+
 
     <!-- Messages Area -->
     <ScrollArea class="flex-1 p-4 min-h-0">
@@ -85,15 +63,22 @@ interface Message {
 interface Props {
   conversationId?: string | null
   user: User
+  modelValue?: string
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  modelValue: 'gpt-4o-mini'
+})
+
 const emit = defineEmits<{
   conversationCreated: [conversationId: string]
-  sendMessage: [message: string]
+  'update:modelValue': [value: string]
 }>()
 
-const selectedModel = ref('gpt-4o-mini')
+const selectedModel = computed({
+  get: () => props.modelValue,
+  set: (value) => emit('update:modelValue', value)
+})
 const inputMessage = ref('')
 const messages = ref<Message[]>([])
 const streamingMessage = ref<Message | null>(null)
