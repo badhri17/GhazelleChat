@@ -6,14 +6,15 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ["@nuxt/icon", "shadcn-nuxt", "@nuxtjs/color-mode"],
   colorMode: {
-    classSuffix: ''
+    classSuffix: "",
   },
   runtimeConfig: {
-    databaseUrl: process.env.DATABASE_URL || 'file:./db.sqlite',
+    databaseUrl: process.env.DATABASE_URL || "file:./db.sqlite",
     openaiApiKey: process.env.OPENAI_API_KEY,
     groqApiKey: process.env.GROQ_API_KEY,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-    authSecret: process.env.AUTH_SECRET
+    geminiApiKey: process.env.GOOGLE_API_KEY,
+    authSecret: process.env.AUTH_SECRET,
   },
   vite: {
     plugins: [

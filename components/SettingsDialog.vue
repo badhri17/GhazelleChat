@@ -241,6 +241,9 @@
                         <SelectItem value="gpt-4o">GPT-4o (OpenAI)</SelectItem>
                         <SelectItem value="claude-3-sonnet">Claude 3 Sonnet (Anthropic)</SelectItem>
                         <SelectItem value="llama-3-70b">Llama 3 70B (Groq)</SelectItem>
+                        <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Google)</SelectItem>
+                        <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Google)</SelectItem>
+                        <SelectItem value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (Google)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

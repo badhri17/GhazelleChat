@@ -12,7 +12,16 @@ import { lucia } from '~/server/plugins/lucia'
 const chatSchema = z.object({
   message: z.string().min(1),
   conversationId: z.string().nullable().optional(),
-  model: z.enum(['gpt-4o', 'gpt-4o-mini', 'claude-3-5-sonnet-latest', 'llama-3.1-70b-versatile']).default('gpt-4o-mini')
+  model: z.enum([
+    'gpt-4o',
+    'gpt-4o-mini',
+    'claude-3-5-sonnet-latest',
+    'llama-3.1-70b-versatile',
+    'gemini-pro',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash',
+    'gemini-2.0-flash-lite'
+  ]).default('gpt-4o-mini')
 })
 
 interface ChatMessage {
@@ -168,6 +177,105 @@ export default defineEventHandler(async (event) => {
                 controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
               }
             }
+          } else if (model.startsWith('gemini-')) {
+            const apiKey = config.geminiApiKey
+            if (!apiKey) {
+              throw new Error('Missing Gemini API key')
+            }
+
+            // Convert chat history to Gemini format
+            const googleMessages = chatMessages.map((msg) => ({
+              role: msg.role === 'user' ? 'user' : 'model',
+              parts: [{ text: msg.content }]
+            }))
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`;
+
+            console.log('🚀 Gemini API Request:', {
+              model,
+              messageCount: chatMessages.length,
+              url: url.replace(/key=.+/, 'key=***')
+            })
+
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                contents: googleMessages,
+                generationConfig: {
+                  maxOutputTokens: 2048,
+                  temperature: 0.9,
+                  topP: 0.95
+                }
+              })
+            })
+
+            if (!response.ok || !response.body) {
+              const errorText = await response.text()
+              console.error('❌ Gemini API Error:', response.status, response.statusText, errorText)
+              throw new Error(`Gemini API error: ${response.status} ${response.statusText}`)
+            }
+
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder()
+            let buffer = ''
+
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+
+              buffer += decoder.decode(value, { stream: true })
+
+              // Parse comma-separated JSON objects
+              // Remove array brackets if present
+              let cleanBuffer = buffer.replace(/^\[/, '').replace(/\]$/, '')
+              
+              // Try to find complete JSON objects separated by commas
+              const possibleObjects = cleanBuffer.split(/,(?=\s*{)/)
+              
+              // Keep the last incomplete object in buffer
+              if (possibleObjects.length > 1) {
+                buffer = possibleObjects.pop() || ''
+                
+                for (const objStr of possibleObjects) {
+                  const trimmedObj = objStr.trim()
+                  if (!trimmedObj) continue
+                  
+                  try {
+                    const data = JSON.parse(trimmedObj)
+                    console.log('📦 Gemini chunk:', data)
+                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+                    if (text) {
+                      fullResponse += text
+                      controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
+                    }
+                  } catch (e) {
+                    console.warn('⚠️ Failed to parse Gemini chunk:', trimmedObj.slice(0, 100), e)
+                  }
+                }
+              }
+            }
+
+            // Parse any remaining buffer content
+            if (buffer.trim()) {
+              const cleanBuffer = buffer.replace(/^\[/, '').replace(/\]$/, '').trim()
+              if (cleanBuffer) {
+                try {
+                  const data = JSON.parse(cleanBuffer)
+                  console.log('📦 Gemini final chunk:', data)
+                  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+                  if (text) {
+                    fullResponse += text
+                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
+                  }
+                } catch (e) {
+                  console.warn('⚠️ Failed to parse final Gemini chunk:', cleanBuffer.slice(0, 100), e)
+                }
+              }
+            }
+
           } else {
             const groq = new Groq({
               apiKey: config.groqApiKey

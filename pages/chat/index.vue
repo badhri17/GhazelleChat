@@ -10,10 +10,10 @@
         <header class="sticky top-0 z-40 border-b px-4 py-3 flex justify-between items-center bg-background/95 backdrop-blur-sm">
           <div class="flex items-center gap-2">
             <SidebarTrigger />
-            <h2 class="font-semibold">New Conversation</h2>
+            <h2 class="font-semibold mr-2 text-base">New Conversation</h2>
+            <ModelSelector v-model="selectedModel" />
           </div>
           <div class="flex items-center gap-4">
-            <ModelSelector v-model="selectedModel" />
             <ThemeToggle />
           </div>
         </header>

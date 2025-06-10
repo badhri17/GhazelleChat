@@ -24,6 +24,15 @@
       </SelectGroup>
       <SelectGroup>
         <SelectLabel class="flex items-center gap-2">
+          <Icon name="simple-icons:google" class="w-4 h-4" />
+          Google Gemini
+        </SelectLabel>
+        <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
+        <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
+        <SelectItem value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite</SelectItem>
+      </SelectGroup>
+      <SelectGroup>
+        <SelectLabel class="flex items-center gap-2">
           <Icon name="simple-icons:ollama" class="w-4 h-4" />
           Groq
         </SelectLabel>
@@ -63,6 +72,7 @@ const modelIcon = computed(() => {
   if (value.startsWith('gpt-')) return 'simple-icons:openai'
   if (value.startsWith('claude-')) return 'simple-icons:anthropic'
   if (value.startsWith('llama-')) return 'simple-icons:llama'
+  if (value.startsWith('gemini-')) return 'simple-icons:google'
   return 'simple-icons:openai' // Default icon
 })
 </script> 
