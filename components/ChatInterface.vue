@@ -41,6 +41,22 @@
           :message="message"
         />
 
+        <!-- Loading Message -->
+        <div v-if="isLoading && !streamingMessage" class="flex gap-3">
+          <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Icon name="lucide:bot" class="w-4 h-4 text-primary/70" />
+          </div>
+          <div class="max-w-[80%] rounded-lg p-3 bg-muted">
+            <div class="text-xs text-muted-foreground mb-2 font-mono">
+              {{ selectedModel }}
+            </div>
+            <div class="flex items-center gap-2 text-muted-foreground">
+              <Icon name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+              <span>Thinking...</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Streaming Message -->
         <ChatMessage
           v-if="streamingMessage"
@@ -125,14 +141,10 @@ async function sendMessage() {
   }
   messages.value.push(userMsg)
 
-  // Initialize streaming message
-  streamingMessage.value = {
-    id: (Date.now() + 1).toString(),
-    role: 'assistant',
-    content: '',
-    model: selectedModel.value,
-    createdAt: new Date()
-  }
+  // Scroll to bottom to show loading message
+  nextTick(() => {
+    scrollToBottom()
+  })
 
   try {
     const response = await fetch('/api/chat', {
@@ -165,7 +177,19 @@ async function sendMessage() {
             const data = JSON.parse(line.slice(6))
             
             if (data.content) {
-              streamingMessage.value!.content += data.content
+              // Initialize streaming message on first content chunk
+              if (!streamingMessage.value) {
+                streamingMessage.value = {
+                  id: (Date.now() + 1).toString(),
+                  role: 'assistant',
+                  content: '',
+                  model: selectedModel.value,
+                  createdAt: new Date()
+                }
+                // Clear loading state on first content chunk
+                isLoading.value = false
+              }
+              streamingMessage.value.content += data.content
             }
             
             if (data.conversationId && !props.conversationId) {
@@ -202,10 +226,12 @@ async function sendMessage() {
 }
 
 function scrollToBottom() {
-  // This will be handled by the scroll area
   const scrollArea = document.querySelector('[data-radix-scroll-area-viewport]')
   if (scrollArea) {
-    scrollArea.scrollTop = scrollArea.scrollHeight
+    window.scrollTo({
+      top: scrollArea.scrollHeight,
+      behavior: 'smooth'
+    })
   }
 }
 

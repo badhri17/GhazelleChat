@@ -1,12 +1,6 @@
 <template>
   <div :class="cn('flex gap-3', message.role === 'user' ? 'justify-end' : '')">
-    <!-- Avatar -->
-    <div 
-      v-if="message.role === 'assistant'"
-      class="rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0"
-    >
-      
-    </div>
+
 
     <!-- Message Content -->
     <div :class="cn(
@@ -49,17 +43,12 @@
       </Button>
     </div>
 
-    <!-- User Avatar -->
-    <div 
-      v-if="message.role === 'user'"
-      class="rounded-full bg-secondary flex items-center justify-center flex-shrink-0"
-    >
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { cn } from '~/lib/utils'
+import { toast } from 'vue-sonner'
 
 interface Message {
   id: string
@@ -86,9 +75,16 @@ function formatTime(date: Date) {
 async function copyMessage() {
   try {
     await navigator.clipboard.writeText(props.message.content)
-    // Could add toast notification here
+    toast.success('Message copied to clipboard', {
+      description: 'The message content has been copied to your clipboard.',
+      duration: 3000
+    })
   } catch (error) {
     console.error('Failed to copy message:', error)
+    toast.error('Failed to copy message', {
+      description: 'Please try again or copy manually.',
+      duration: 2000
+    })
   }
 }
 </script> 

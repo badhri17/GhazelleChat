@@ -1,9 +1,13 @@
 <template>
-  <NuxtPage />
+  <div>
+    <NuxtPage />
+    <Toaster />
+  </div>
 </template>
 
 <script setup>
-// Component logic goes here
+import { Toaster } from '@/components/ui/sonner'
+import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 </script>
 
 <style>

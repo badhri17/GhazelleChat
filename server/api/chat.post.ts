@@ -21,6 +21,8 @@ interface ChatMessage {
 }
 
 export default defineEventHandler(async (event) => {
+  const config = useRuntimeConfig()
+
   try {
     // Verify authentication
     const sessionId = getCookie(event, lucia.sessionCookieName)
@@ -89,28 +91,67 @@ export default defineEventHandler(async (event) => {
 
         try {
           if (model.startsWith('gpt-')) {
-            // OpenAI
             const openai = new OpenAI({
-              apiKey: process.env.OPENAI_API_KEY
+              apiKey: config.openaiApiKey
             })
 
-            const stream = await openai.chat.completions.create({
+            // Log the request payload
+            const requestPayload = {
               model,
               messages: chatMessages,
               stream: true
+            }
+            console.log('🚀 OpenAI API Request:', {
+              url: 'https://api.openai.com/v1/chat/completions',
+              method: 'POST',
+              model,
+              messageCount: chatMessages.length,
+              messages: chatMessages.map(msg => ({ role: msg.role, content: msg.content.slice(0, 100) + (msg.content.length > 100 ? '...' : '') })),
             })
 
+            const startTime = Date.now()
+            console.log('⏱️ Starting OpenAI request at:', new Date().toISOString())
+
+            const stream = await openai.chat.completions.create({
+              ...requestPayload,
+              stream: true
+            })
+
+            const firstChunkTime = Date.now()
+            console.log('⚡ First chunk received after:', firstChunkTime - startTime, 'ms')
+
+            let chunkCount = 0
             for await (const chunk of stream) {
+              chunkCount++
               const content = chunk.choices[0]?.delta?.content || ''
+              
+              if (chunkCount === 1) {
+                console.log('📦 First chunk content:', JSON.stringify(chunk, null, 2))
+              }
+              
               if (content) {
                 fullResponse += content
                 controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
               }
+
+              // Log every 50th chunk to avoid spam
+              if (chunkCount % 50 === 0) {
+                console.log(`📊 Processed ${chunkCount} chunks, response length: ${fullResponse.length}`)
+              }
             }
+
+            const endTime = Date.now()
+            console.log('✅ OpenAI request completed:', {
+              totalTime: endTime - startTime + 'ms',
+              timeToFirstChunk: firstChunkTime - startTime + 'ms',
+              totalChunks: chunkCount,
+              responseLength: fullResponse.length,
+              tokensEstimate: Math.ceil(fullResponse.length / 4) // rough estimate
+            })
+
           } else if (model.startsWith('claude-')) {
-            // Anthropic
             const anthropic = new Anthropic({
-              apiKey: process.env.ANTHROPIC_API_KEY
+              apiKey: config.anthropicApiKey
             })
 
             const stream = await anthropic.messages.create({
@@ -128,9 +169,8 @@ export default defineEventHandler(async (event) => {
               }
             }
           } else {
-            // Groq
             const groq = new Groq({
-              apiKey: process.env.GROQ_API_KEY
+              apiKey: config.groqApiKey
             })
 
             const stream = await groq.chat.completions.create({
@@ -165,7 +205,13 @@ export default defineEventHandler(async (event) => {
           })}\n\n`))
           
         } catch (error) {
-          console.error('Chat error:', error)
+          console.error('❌ Chat error details:', {
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            model,
+            messageCount: chatMessages.length,
+            timestamp: new Date().toISOString()
+          })
           controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
             error: 'Failed to generate response' 
           })}\n\n`))
@@ -186,4 +232,4 @@ export default defineEventHandler(async (event) => {
     }
     throw error
   }
-}) 
+})
