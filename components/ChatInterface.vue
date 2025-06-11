@@ -101,6 +101,10 @@ async function loadMessages(conversationId: string) {
       ...msg,
       createdAt: new Date(msg.createdAt)
     }))
+    
+    nextTick(() => {
+      scrollToBottom()
+    })
   } catch (error) {
     console.error('Failed to load messages:', error)
   }
@@ -126,7 +130,6 @@ async function sendMessage() {
   }
   messages.value.push(userMsg)
 
-  // Scroll to bottom to show loading message
   nextTick(() => {
     scrollToBottom()
   })
@@ -175,6 +178,11 @@ async function sendMessage() {
                 isLoading.value = false
               }
               streamingMessage.value.content += data.content
+              
+              // Scroll to bottom as content is being streamed
+              nextTick(() => {
+                scrollToBottom()
+              })
             }
             
             if (data.conversationId && !props.conversationId) {
@@ -185,6 +193,11 @@ async function sendMessage() {
               // Move streaming message to messages array
               messages.value.push({...streamingMessage.value!})
               streamingMessage.value = null
+              
+              // Final scroll to bottom when streaming is complete
+              nextTick(() => {
+                scrollToBottom()
+              })
             }
           } catch (e) {
             // Skip invalid JSON
@@ -211,7 +224,7 @@ async function sendMessage() {
 }
 
 function scrollToBottom() {
-  const scrollArea = document.querySelector('[data-radix-scroll-area-viewport]')
+  const scrollArea = document.querySelector('div[data-slot="scroll-area"]')
   if (scrollArea) {
     window.scrollTo({
       top: scrollArea.scrollHeight,

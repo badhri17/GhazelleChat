@@ -191,11 +191,6 @@ export default defineEventHandler(async (event) => {
 
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`;
 
-            console.log('🚀 Gemini API Request:', {
-              model,
-              messageCount: chatMessages.length,
-              url: url.replace(/key=.+/, 'key=***')
-            })
 
             const response = await fetch(url, {
               method: 'POST',
@@ -245,7 +240,7 @@ export default defineEventHandler(async (event) => {
                   
                   try {
                     const data = JSON.parse(trimmedObj)
-                    console.log('📦 Gemini chunk:', data)
+                    
                     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
                     if (text) {
                       fullResponse += text
@@ -264,7 +259,7 @@ export default defineEventHandler(async (event) => {
               if (cleanBuffer) {
                 try {
                   const data = JSON.parse(cleanBuffer)
-                  console.log('📦 Gemini final chunk:', data)
+                  
                   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
                   if (text) {
                     fullResponse += text
