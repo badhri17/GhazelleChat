@@ -113,7 +113,7 @@ async function loadMessages(conversationId: string) {
     }
     
     nextTick(() => {
-      scrollToBottom()
+      scrollToBottom('auto')
     })
   } catch (error) {
     console.error('Failed to load messages:', error)
@@ -233,12 +233,12 @@ async function sendMessage() {
   }
 }
 
-function scrollToBottom() {
+function scrollToBottom(behavior: 'smooth' | 'auto' = 'smooth') {
   const scrollArea = document.querySelector('div[data-slot="scroll-area"]')
   if (scrollArea) {
     window.scrollTo({
       top: scrollArea.scrollHeight,
-      behavior: 'smooth'
+      behavior: behavior
     })
   }
 }
