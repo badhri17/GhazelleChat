@@ -8,13 +8,14 @@ import { lucia } from '~/server/plugins/lucia'
 
 const registerSchema = z.object({
   email: z.string().email(),
+  fullName: z.string().min(1, 'Full name is required'),
   password: z.string().min(6)
 })
 
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event)
-    const { email, password } = registerSchema.parse(body)
+    const { email, fullName, password } = registerSchema.parse(body)
 
     // Check if user already exists
     const existingUser = await db.select().from(users).where(eq(users.email, email)).limit(1)
@@ -34,6 +35,7 @@ export default defineEventHandler(async (event) => {
     await db.insert(users).values({
       id: userId,
       email,
+      fullName,
       hashedPassword,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -47,7 +49,8 @@ export default defineEventHandler(async (event) => {
       success: true,
       user: {
         id: userId,
-        email
+        email,
+        fullName
       }
     }
   } catch (error) {

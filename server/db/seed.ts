@@ -14,6 +14,7 @@ async function seed() {
     await db.insert(users).values({
       id: demoUserId,
       email: 'demo@local.test',
+      fullName: 'Demo User',
       hashedPassword,
       createdAt: new Date(),
       updatedAt: new Date()

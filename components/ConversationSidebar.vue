@@ -53,11 +53,11 @@
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3 min-w-0 flex-1">
           <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <Icon name="lucide:user" class="w-4 h-4 text-primary" />
+            <span class="text-xs font-medium text-primary">{{ user.fullName?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || 'U' }}</span>
           </div>
           <div class="min-w-0 flex-1">
-            <div class="text-sm font-medium truncate">{{ user.email }}</div>
-            <div class="text-xs text-muted-foreground">Free Plan</div>
+            <div class="text-sm font-medium truncate">{{ user.fullName || user.email }}</div>
+            <div class="text-xs text-muted-foreground truncate">{{ user.email }}</div>
           </div>
         </div>
         
@@ -137,6 +137,7 @@ import {
 interface User {
   id: string
   email: string
+  fullName: string
 }
 
 interface Conversation {

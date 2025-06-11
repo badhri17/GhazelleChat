@@ -25,6 +25,7 @@ definePageMeta({
 interface User {
   id: string
   email: string
+  fullName: string
 }
 
 async function handleLogin(userData: User) {

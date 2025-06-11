@@ -9,6 +9,17 @@
     
     <CardContent>
       <form @submit.prevent="handleSubmit" class="space-y-4">
+        <div v-if="!isLogin">
+          <Label for="fullName">Full Name</Label>
+          <Input
+            id="fullName"
+            v-model="fullName"
+            type="text"
+            placeholder="Enter your full name"
+            required
+          />
+        </div>
+        
         <div>
           <Label for="email">Email</Label>
           <Input
@@ -64,6 +75,7 @@
 interface User {
   id: string
   email: string
+  fullName: string
 }
 
 const emit = defineEmits<{
@@ -72,6 +84,7 @@ const emit = defineEmits<{
 
 const isLogin = ref(true)
 const email = ref('')
+const fullName = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -79,22 +92,25 @@ const error = ref('')
 function toggleMode() {
   isLogin.value = !isLogin.value
   error.value = ''
+  fullName.value = ''
 }
 
 async function handleSubmit() {
   if (!email.value || !password.value) return
+  if (!isLogin.value && !fullName.value) return
   
   loading.value = true
   error.value = ''
   
   try {
     const endpoint = isLogin.value ? '/api/auth/login' : '/api/auth/register'
+    const requestBody = isLogin.value 
+      ? { email: email.value, password: password.value }
+      : { email: email.value, fullName: fullName.value, password: password.value }
+      
     const response = await $fetch(endpoint, {
       method: 'POST',
-      body: {
-        email: email.value,
-        password: password.value
-      }
+      body: requestBody
     })
     
     if (response.success) {

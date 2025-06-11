@@ -59,6 +59,7 @@ import ModelSelector from '@/components/ModelSelector.vue'
 interface User {
   id: string
   email: string
+  fullName: string
 }
 
 interface Conversation {

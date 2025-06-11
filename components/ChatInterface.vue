@@ -50,6 +50,7 @@
 interface User {
   id: string
   email: string
+  fullName: string
 }
 
 interface Message {
@@ -101,6 +102,15 @@ async function loadMessages(conversationId: string) {
       ...msg,
       createdAt: new Date(msg.createdAt)
     }))
+    
+    // Set the selected model to match the latest assistant message model
+    const latestAssistantMessage = [...messages.value]
+      .reverse()
+      .find(msg => msg.role === 'assistant' && msg.model)
+    
+    if (latestAssistantMessage?.model) {
+      selectedModel.value = latestAssistantMessage.model
+    }
     
     nextTick(() => {
       scrollToBottom()

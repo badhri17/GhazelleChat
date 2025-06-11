@@ -295,11 +295,12 @@
                   <div class="p-4 border rounded-lg transition-all duration-200 hover:border-border/60">
                     <div class="flex items-center gap-3 mb-3">
                       <div class="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center transition-all duration-200 hover:bg-primary/20">
-                        <span class="text-sm font-medium">{{ user?.email?.[0]?.toUpperCase() || 'U' }}</span>
+                        <span class="text-sm font-medium">{{ user?.fullName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U' }}</span>
                       </div>
                       <div>
-                        <div class="font-medium">{{ user?.email }}</div>
-                        <div class="text-sm text-muted-foreground">Free Plan</div>
+                        <div class="font-medium">{{ user?.fullName || user?.email }}</div>
+                        <div class="text-sm text-muted-foreground">{{ user?.email }}</div>
+                        <div class="text-xs text-muted-foreground">Free Plan</div>
                       </div>
                     </div>
                   </div>
@@ -368,6 +369,7 @@ import { Button } from '@/components/ui/button'
 interface User {
   id: string
   email: string
+  fullName: string
 }
 
 interface Props {

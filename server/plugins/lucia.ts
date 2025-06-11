@@ -11,9 +11,10 @@ export const lucia = new Lucia(adapter, {
       secure: !import.meta.dev
     }
   },
-  getUserAttributes: (attributes: { email: string }) => {
+  getUserAttributes: (attributes: { email: string; fullName: string }) => {
     return {
-      email: attributes.email
+      email: attributes.email,
+      fullName: attributes.fullName
     }
   }
 })
@@ -23,6 +24,7 @@ declare module 'lucia' {
     Lucia: typeof lucia
     DatabaseUserAttributes: {
       email: string
+      fullName: string
     }
   }
 }
