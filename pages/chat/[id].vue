@@ -11,7 +11,7 @@
       <!-- Main Chat Area -->
       <SidebarInset>
         <!-- Sticky Header -->
-        <header class="sticky top-0 z-40 border-b px-4 py-3 flex justify-between items-center bg-background/95 backdrop-blur-sm">
+        <header class="sticky top-0 z-40 border-b px-4 py-3 flex justify-between items-center  backdrop-blur-sm  border-none">
           <div class="flex items-center gap-2">
             <SidebarTrigger />
             <h2 class="font-semibold mr-2 text-base">

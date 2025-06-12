@@ -4,10 +4,10 @@
 
     <!-- Message Content -->
     <div :class="cn(
-      'max-w-[80%] rounded-lg p-3 relative group',
+      'max-w-[80%] rounded-lg p-3 relative group backdrop-blur-xl border-none bg-transparent',
       message.role === 'user' 
-        ? 'bg-primary text-primary-foreground ml-12' 
-        : 'bg-muted'
+        ? 'bg-primary text-primary-foreground ml-12  backdrop-blur-4xl border-none' 
+        : 'bg-background/40 border-none'
     )">
       <!-- Model Badge for Assistant -->
       <div 

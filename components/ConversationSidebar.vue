@@ -1,19 +1,18 @@
 <template>
   <Sidebar>
     <SidebarHeader>
-      <div class="flex items-center gap-2 px-4 py-2">
-        <NuxtLink to="/" class="flex items-center gap-2 hover:opacity-80 transition-opacity">
-          <h1 class="text-xl font-bold">GhazelleChat</h1>
-          <span class="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">Beta</span>
-        </NuxtLink>
-      </div>
+              <div class="flex items-center gap-2 px-4 py-4 justify-center">
+          <NuxtLink to="/" class="flex items-center hover:opacity-80 transition-opacity">
+            <img src="@/assets/images/logo/logo1.png" alt="GhazelleChat" class="h-14 w-33 " />
+          </NuxtLink>
+        </div>
     </SidebarHeader>
     
     <SidebarContent>
       <SidebarGroup v-if="user">
         <!-- Prominent New Chat Button -->
         <div class="p-2 pb-2">
-          <Button @click="() => navigateTo('/chat')" class="w-full bg-primary hover:bg-primary/90 text-primary-foreground " :size="'sm'">
+          <Button @click="() => navigateTo('/chat')" class="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-xs  " :size="'sm'">
             <Icon name="lucide:plus" class="w-4 h-4 mr-2" />
             New Chat
           </Button>

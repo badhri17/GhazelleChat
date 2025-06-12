@@ -4,7 +4,7 @@
     <div class="max-w-2xl mx-auto">
         
       <form @submit.prevent="handleSendMessage" class="relative">
-        <div class="flex items-end gap-4 p-4 bg-background/70 backdrop-blur-xl border border-border/60 rounded-2xl ">
+        <div class="flex items-end gap-4 p-4 bg-background/50 backdrop-blur-xl border border-none rounded-2xl ">
           <Textarea
             ref="textareaRef"
             v-model="inputMessage"
@@ -18,7 +18,7 @@
             type="submit" 
             :disabled="!inputMessage.trim() || isLoading"
             size="icon"
-            class="h-12 w-12 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl shadow-lg transition-all duration-200 flex-shrink-0"
+            class="h-9 w-9 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl  transition-all duration-200 flex-shrink-0"
           >
             <Icon v-if="isLoading" name="lucide:loader-2" class="w-5 h-5 animate-spin" />
             <Icon v-else name="lucide:send" class="w-5 h-5" />
