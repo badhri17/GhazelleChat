@@ -14,7 +14,7 @@ const props = withDefaults(defineProps<
 const delegatedProps = reactiveOmit(props, 'class')
 </script>
 
-<template>
+<template>zz
   <Separator
     data-slot="separator-root"
     v-bind="delegatedProps"

@@ -1,12 +1,12 @@
 <template>
   <Select v-model="internalValue" class="w-48">
-    <SelectTrigger class="bg-background/60 backdrop-blur-lg border border-border/40 hover:bg-background/80 focus:bg-background/80 transition-all duration-200 shadow-lg rounded-lg">
+    <SelectTrigger class="bg-background/60 backdrop-blur-lg border border-border/40 hover:bg-background/80 focus:bg-background/80 transition-all duration-200  rounded-lg">
       <div class="flex items-center gap-2">
         <Icon :name="modelIcon" class="w-4 h-4" />
         <SelectValue placeholder="Select model" />
       </div>
     </SelectTrigger>
-    <SelectContent class="bg-background/80 backdrop-blur-xl border border-border/40 shadow-xl">
+    <SelectContent class="bg-background/50 backdrop-blur-xl border border-border/40 max-h-96 ">
       <SelectGroup>
         <SelectLabel class="flex items-center gap-2">
           <Icon name="simple-icons:openai" class="w-4 h-4" />

@@ -1,6 +1,6 @@
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="sm:max-w-[700px] max-h-[80vh] overflow-hidden">
+    <DialogContent class="sm:max-w-[700px] max-h-[80vh] overflow-hidden backdrop-blur-xl">
       <DialogHeader>
         <DialogTitle class="text-xl font-semibold">Settings</DialogTitle>
       </DialogHeader>

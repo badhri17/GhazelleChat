@@ -66,7 +66,7 @@
               <Icon name="lucide:more-horizontal" class="w-4 h-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="w-56">
+          <DropdownMenuContent align="end" class="w-56 backdrop-blur-xl bg-background/50">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem class="cursor-pointer">
