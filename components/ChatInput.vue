@@ -18,10 +18,15 @@
             type="submit" 
             :disabled="!inputMessage.trim() || isLoading"
             size="icon"
-            class="h-9 w-9 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl  transition-all duration-200 flex-shrink-0"
+            :class="[
+              'h-9 w-9 text-primary-foreground rounded-xl transition-all duration-300 flex-shrink-0 relative cursor-pointer',
+              !inputMessage.trim() || isLoading 
+                ? 'bg-muted text-muted-foreground cursor-not-allowed' 
+                : 'bg-primary hover:bg-primary/90 glow-button'
+            ]"
           >
             <Icon v-if="isLoading" name="lucide:loader-2" class="w-5 h-5 animate-spin" />
-            <Icon v-else name="lucide:send" class="w-5 h-5" />
+            <Icon v-else name="lucide:arrow-up" class="w-5 h-5" />
           </Button>
         </div>
       </form>
@@ -88,4 +93,82 @@ defineExpose({
     })
   }
 })
-</script> 
+</script>
+<style>
+.glow-button {
+  position: relative;
+  animation: glow-pulse 2s ease-in-out infinite alternate;
+}
+
+.glow-button:hover {
+  animation: glow-pulse-intense 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes glow-pulse {
+  0% {
+    box-shadow: 
+      0 0 15px rgba(255, 140, 0, 0.2),
+      0 0 25px rgba(255, 140, 0, 0.1),
+      0 0 35px rgba(255, 140, 0, 0.05);
+  }
+  100% {
+    box-shadow: 
+      0 0 20px rgba(255, 140, 0, 0.3),
+      0 0 35px rgba(255, 140, 0, 0.2),
+      0 0 50px rgba(255, 140, 0, 0.1);
+  }
+}
+
+@keyframes glow-pulse-intense {
+  0% {
+    box-shadow: 
+      0 0 20px rgba(255, 140, 0, 0.3),
+      0 0 30px rgba(255, 140, 0, 0.2),
+      0 0 45px rgba(255, 140, 0, 0.1);
+  }
+  100% {
+    box-shadow: 
+      0 0 25px rgba(255, 140, 0, 0.5),
+      0 0 45px rgba(255, 140, 0, 0.3),
+      0 0 70px rgba(255, 140, 0, 0.2);
+  }
+}
+
+.dark .glow-button {
+  animation: glow-pulse-dark 2s ease-in-out infinite alternate;
+}
+
+.dark .glow-button:hover {
+  animation: glow-pulse-dark-intense 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes glow-pulse-dark {
+  0% {
+    box-shadow: 
+      0 0 20px rgba(255, 140, 0, 0.3),
+      0 0 30px rgba(255, 140, 0, 0.2),
+      0 0 40px rgba(255, 140, 0, 0.1);
+  }
+  100% {
+    box-shadow: 
+      0 0 25px rgba(255, 140, 0, 0.4),
+      0 0 40px rgba(255, 140, 0, 0.3),
+      0 0 60px rgba(255, 140, 0, 0.2);
+  }
+}
+
+@keyframes glow-pulse-dark-intense {
+  0% {
+    box-shadow: 
+      0 0 25px rgba(255, 140, 0, 0.4),
+      0 0 35px rgba(255, 140, 0, 0.3),
+      0 0 50px rgba(255, 140, 0, 0.2);
+  }
+  100% {
+    box-shadow: 
+      0 0 30px rgba(255, 140, 0, 0.6),
+      0 0 50px rgba(255, 140, 0, 0.4),
+      0 0 80px rgba(255, 140, 0, 0.3);
+  }
+}
+</style> 
