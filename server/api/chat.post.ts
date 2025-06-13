@@ -7,6 +7,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { db } from '~/server/db'
 import { conversations, messages } from '~/server/db/schema'
 import { lucia } from '~/server/plugins/lucia'
+import { setAbortController } from '~/server/utils/abortControllers'
 
 const chatSchema = z.object({
   message: z.string().min(1),
@@ -29,6 +30,8 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
 }
+
+
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
@@ -166,6 +169,35 @@ export default defineEventHandler(async (event) => {
 
           console.log('🚀 Starting stream:', streamId, 'for message:', assistantMessageId)
 
+          // 🚀 Send the assistantMessageId immediately so the frontend can
+          // call the stop endpoint even before the first LLM token arrives.
+          try {
+            if (!clientDisconnected) {
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ messageId: assistantMessageId })}\n\n`))
+            }
+          } catch (e) {
+            // If the client already disconnected this will throw – ignore.
+          }
+
+          // -----------------------------
+          // Shared abort controller logic
+          // -----------------------------
+          const abortController = new AbortController()
+
+          // ❶  If the browser closes the SSE ( user pressed STOP or refreshed )
+          //     Nitro fires both 'close' and 'aborted'. We tie those to the
+          //     same controller so the upstream LLM request is cancelled too.
+          event.node.req.on('close',   () => abortController.abort())
+          event.node.req.on('aborted', () => abortController.abort())
+          event.node.req.on('error',   () => abortController.abort())
+
+          // Also abort when the response stream itself is closed (e.g. UI Stop button)
+          event.node.res.on('close', () => abortController.abort())
+
+          // Expose this controller so the frontend can cancel via
+          // PUT /api/messages/:id/stop
+          setAbortController(assistantMessageId, abortController)
+
           if (model.startsWith('gpt-')) {
             const openai = new OpenAI({
               apiKey: config.openaiApiKey
@@ -188,15 +220,11 @@ export default defineEventHandler(async (event) => {
             const startTime = Date.now()
             console.log('⏱️ Starting OpenAI request at:', new Date().toISOString())
 
-            // Create AbortController for OpenAI request
-            const openaiAbortController = new AbortController()
-            
-            // Note: We don't abort generation when client disconnects
-            // Generation continues in background and saves to database
-
             const stream = await openai.chat.completions.create({
               ...requestPayload,
               stream: true
+            }, {
+              signal: abortController.signal
             })
 
             const firstChunkTime = Date.now()
@@ -267,17 +295,13 @@ export default defineEventHandler(async (event) => {
             const startTime = Date.now()
             // console.log('⏱️ Starting Anthropic request at:', new Date().toISOString())
 
-            // Create AbortController for Anthropic request
-            const anthropicAbortController = new AbortController()
-            
-            // Note: We don't abort generation when client disconnects
-            // Generation continues in background and saves to database
-
             const stream = await anthropic.messages.create({
               model,
               max_tokens: maxTokens,
               messages: chatMessages,
               stream: true
+            }, {
+              signal: abortController.signal
             })
 
             const firstChunkTime = Date.now()
@@ -343,17 +367,13 @@ export default defineEventHandler(async (event) => {
 
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`;
 
-            // Create AbortController for Gemini request
-            const geminiAbortController = new AbortController()
-            
-            // Note: We don't abort generation when client disconnects
-            // Generation continues in background and saves to database
-
+            // Shared abortController will cancel the fetch when requested
             const response = await fetch(url, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
               },
+              signal: abortController.signal,
               body: JSON.stringify({
                 contents: googleMessages,
                 generationConfig: {
@@ -483,70 +503,85 @@ export default defineEventHandler(async (event) => {
               apiKey: config.groqApiKey
             })
 
-            // Create AbortController for Groq request
-            const groqAbortController = new AbortController()
-            
-            // Note: We don't abort generation when client disconnects
-            // Generation continues in background and saves to database
+            // Check periodically if client disconnected – the same shared controller is used
+            const abortInterval = setInterval(() => {
+              if (clientDisconnected) {
+                console.log('🛑 Client disconnected, aborting Groq request')
+                abortController.abort()
+                clearInterval(abortInterval)
+              }
+            }, 50)
 
             const stream = await groq.chat.completions.create({
               model,
               messages: chatMessages,
               stream: true
+            }, {
+              signal: abortController.signal
+            }).catch((error) => {
+              clearInterval(abortInterval)
+              if (error.name === 'AbortError') {
+                console.log('🛑 Groq request aborted successfully')
+                return null
+              }
+              throw error
             })
 
+            clearInterval(abortInterval)
+            
+            if (!stream) {
+              console.log('🛑 Groq request was aborted, not processing')
+              return
+            }
+
             for await (const chunk of stream) {
+              // Check if client aborted
+              if (clientDisconnected) {
+                console.log('🛑 Stopping Groq stream due to client abort')
+                break
+              }
+
               const content = chunk.choices[0]?.delta?.content || ''
               if (content) {
                 fullResponse += content
-                
-                // Update database in real-time with new content
-                await db.update(messages)
-                  .set({ content: fullResponse })
-                  .where(eq(messages.id, assistantMessageId))
-                
                 try {
-                  // Only send to client if still connected
-                  if (!clientDisconnected) {
-                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
-                  }
+                  controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
                 } catch (e) {
                   // Stream might be closed if client disconnected
                   if ((e as Error)?.message?.includes('closed')) {
-                    console.log('🔌 Client stream closed, but continuing Groq generation in background')
-                    clientDisconnected = true
-                  } else {
-                    throw e
+                    console.log('🛑 Stream closed, stopping Groq processing')
+                    break
                   }
+                  throw e
                 }
               }
             }
           }
 
-          // Save message if we have any content
+          // Save message if we have any content (even partial)
           if (fullResponse.trim()) {
             // Update the existing message with final content and status
-            // Mark as complete since generation finished normally
             await db.update(messages)
               .set({ 
                 content: fullResponse,
-                status: 'complete'
+                status: clientDisconnected ? 'incomplete' : 'complete'
               })
               .where(eq(messages.id, assistantMessageId))
 
-            console.log('💾 Updated complete response in database:', fullResponse.length + ' characters')
-            
-            try {
-              // Try to send completion signal if client still connected
-              if (!clientDisconnected) {
+            if (clientDisconnected) {
+              console.log('💾 Updated partial response in database:', fullResponse.length + ' characters')
+            } else {
+              console.log('💾 Updated complete response in database')
+              
+              try {
                 controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
                   conversationId: currentConversationId,
                   done: true 
                 })}\n\n`))
+              } catch (e) {
+                // Stream might be closed, but that's ok since we already saved the message
+                console.log('🛑 Stream closed while sending completion signal')
               }
-            } catch (e) {
-              // Stream might be closed, but that's ok since we already saved the message
-              console.log('🔌 Stream closed while sending completion signal, but message saved as complete')
             }
           } else {
             // Delete the empty message if no content was generated

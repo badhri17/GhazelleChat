@@ -227,11 +227,10 @@ function stopStreaming() {
     
     // Mark the message as incomplete in the database
     if (streamingMessage.value.id) {
-      fetch(`/api/messages/${streamingMessage.value.id}/status`, {
+      fetch(`/api/messages/${streamingMessage.value.id}/stop`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'incomplete' })
-      }).catch(err => console.error('Failed to update message status:', err))
+        headers: { 'Content-Type': 'application/json' }
+      }).catch(err => console.error('Failed to stop message:', err))
     }
     
     // Add to messages with incomplete status
@@ -240,6 +239,25 @@ function stopStreaming() {
       status: 'incomplete'
     })
   }
+  
+  // Also stop any messages that might be streaming in background
+  const backgroundStreamingMessages = messages.value.filter(msg => msg.status === 'streaming')
+  for (const message of backgroundStreamingMessages) {
+    fetch(`/api/messages/${message.id}/stop`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' }
+    }).then(() => {
+      // Update local status immediately
+      const index = messages.value.findIndex(m => m.id === message.id)
+      if (index !== -1) {
+        messages.value[index] = {
+          ...messages.value[index],
+          status: 'incomplete'
+        }
+      }
+    }).catch(err => console.error('Failed to stop background message:', err))
+  }
+  
   streamingMessage.value = null
   
   // Focus textarea
@@ -328,7 +346,7 @@ async function sendMessage() {
               // Initialize streaming message on first content chunk
               if (!streamingMessage.value) {
                 streamingMessage.value = {
-                  id: (Date.now() + 1).toString(),
+                  id: data.messageId || (Date.now() + 1).toString(), // Use real messageId from server
                   role: 'assistant',
                   content: '',
                   model: selectedModel.value,
@@ -338,6 +356,12 @@ async function sendMessage() {
                 isLoading.value = false
                 isStreaming.value = true
               }
+              
+              // Update messageId if provided (for first chunk)
+              if (data.messageId && streamingMessage.value.id !== data.messageId) {
+                streamingMessage.value.id = data.messageId
+              }
+              
               streamingMessage.value.content += data.content
               
               // Scroll to bottom as content is being streamed
