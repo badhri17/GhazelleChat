@@ -20,15 +20,12 @@
         />
 
         <!-- Loading Message -->
-        <div v-if="isLoading && !streamingMessage" class="flex gap-3">
-          <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Icon name="lucide:bot" class="w-4 h-4 text-primary/70" />
-          </div>
-          <div class="max-w-[80%] rounded-lg p-3 bg-muted">
+        <div  class="flex gap-3">
+          <div v-if="isLoading && !streamingMessage" class="max-w-[80%]  p-3 backdrop-blur-xl border-none bg-background/20 rounded-lg">
             <div class="text-xs text-muted-foreground mb-2 font-mono">
               {{ selectedModel }}
             </div>
-            <div class="flex items-center gap-2 text-muted-foreground">
+            <div class="flex items-center gap-2 text-foreground">
               <Icon name="lucide:loader-2" class="w-4 h-4 animate-spin" />
               <span>Thinking...</span>
             </div>

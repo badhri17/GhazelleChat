@@ -4,10 +4,10 @@
 
     <!-- Message Content -->
     <div :class="cn(
-      'max-w-[80%] rounded-lg p-3 relative group backdrop-blur-xl border-none bg-transparent',
+      'max-w-[100%] rounded-lg p-3 relative group backdrop-blur-xl border-none bg-transparent',
       message.role === 'user' 
         ? 'bg-primary text-primary-foreground ml-12  backdrop-blur-4xl border-none' 
-        : 'bg-background/40 border-none'
+        : 'bg-background/20 border-none'
     )">
       <!-- Model Badge for Assistant -->
       <div 
@@ -18,10 +18,12 @@
       </div>
 
       <!-- Message Text -->
-      <div class="whitespace-pre-wrap break-words">
-        {{ message.content }}
-        <span v-if="isStreaming" class="animate-pulse">|</span>
+      <div 
+        class="markdown-content break-words"
+        v-html="renderedContent"
+      >
       </div>
+      <span v-if="isStreaming" class="animate-pulse inline-block ml-1">|</span>
 
       <!-- Timestamp -->
       <div :class="cn(
@@ -64,6 +66,23 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+const { parseMarkdown } = useMarkdown()
+
+// Computed property to render markdown content
+const renderedContent = computed(() => {
+  if (props.message.role === 'user') {
+    // For user messages, just escape HTML and preserve line breaks
+    return props.message.content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>')
+  } else {
+    // For assistant messages, parse markdown
+    return parseMarkdown(props.message.content)
+  }
+})
 
 function formatTime(date: Date) {
   return date.toLocaleTimeString([], { 

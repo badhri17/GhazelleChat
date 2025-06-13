@@ -106,6 +106,49 @@
               </div>
             </div>
 
+            <!-- Background Tab -->
+            <div v-else-if="activeTab === 'background'" key="background" class="space-y-6">
+              <div>
+                <h3 class="text-lg font-medium mb-4">Background Selection</h3>
+                
+                <div class="space-y-4">
+                  <p class="text-sm text-muted-foreground">Choose your preferred background image</p>
+                  
+                  <!-- Background Grid -->
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div 
+                      v-for="background in availableBackgrounds" 
+                      :key="background.id"
+                      @click="setBackground(background.id)"
+                      :class="[
+                        'relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg',
+                        currentBackground === background.id 
+                          ? 'border-primary ring-2 ring-primary/20' 
+                          : 'border-border hover:border-primary/50'
+                      ]"
+                    >
+                      <img 
+                        :src="background.path" 
+                        :alt="background.name"
+                        class="w-full h-24 object-cover"
+                      />
+                      <div class="absolute inset-0 bg-black/30 flex items-end">
+                        <div class="p-3 w-full">
+                          <div class="text-white font-medium text-sm">{{ background.name }}</div>
+                        </div>
+                      </div>
+                      <div 
+                        v-if="currentBackground === background.id"
+                        class="absolute top-2 right-2 bg-primary rounded-full p-1"
+                      >
+                        <Icon name="lucide:check" class="w-4 h-4 text-primary-foreground" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Chat Management Tab -->
             <div v-else-if="activeTab === 'chat'" key="chat" class="space-y-6">
               <div>
@@ -394,6 +437,7 @@ const activeTab = ref('general')
 
 const tabs = [
   { id: 'general', label: 'General', icon: 'lucide:settings' },
+  { id: 'background', label: 'Background', icon: 'lucide:image' },
   { id: 'chat', label: 'Chat Management', icon: 'lucide:message-square' },
   { id: 'notifications', label: 'Notifications', icon: 'lucide:bell' },
   { id: 'personalization', label: 'Personalization', icon: 'lucide:user' },
@@ -411,6 +455,14 @@ const settings = reactive({
   preferredModel: 'gpt-4o',
   responseStyle: 'balanced',
   showModel: false,
+})
+
+// Background management
+const { availableBackgrounds, currentBackground, setBackground } = useBackground()
+
+// Debug background changes
+watch(currentBackground, (newValue) => {
+  console.log('Background changed to:', newValue)
 })
 
 function logout() {

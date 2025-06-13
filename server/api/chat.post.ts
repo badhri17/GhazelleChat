@@ -16,6 +16,8 @@ const chatSchema = z.object({
     'gpt-4o',
     'gpt-4o-mini',
     'claude-3-5-sonnet-latest',
+    'claude-sonnet-4-20250514',
+    'claude-opus-4-20250514',
     'llama-3.1-70b-versatile',
     'gemini-pro',
     'gemini-2.5-pro',
@@ -163,20 +165,56 @@ export default defineEventHandler(async (event) => {
               apiKey: config.anthropicApiKey
             })
 
+            // Set max_tokens based on model capabilities
+            let maxTokens = 2048 // Default for older models
+            if (model === 'claude-sonnet-4-20250514') {
+              maxTokens = 4096 // Claude Sonnet 4 can handle up to 64K, but we'll use 4K for reasonable response times
+            } else if (model === 'claude-opus-4-20250514') {
+              maxTokens = 4096 // Claude Opus 4 can handle up to 32K, but we'll use 4K for reasonable response times
+            }
+
+
+            const startTime = Date.now()
+            // console.log('⏱️ Starting Anthropic request at:', new Date().toISOString())
+
             const stream = await anthropic.messages.create({
               model,
-              max_tokens: 2048,
+              max_tokens: maxTokens,
               messages: chatMessages,
               stream: true
             })
 
+            const firstChunkTime = Date.now()
+            console.log('⚡ First chunk received after:', firstChunkTime - startTime, 'ms')
+
+            let chunkCount = 0
             for await (const chunk of stream) {
+              chunkCount++
+              
+              if (chunkCount === 1) {
+                console.log('📦 First chunk content:', JSON.stringify(chunk, null, 2))
+              }
+
               if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
                 const content = chunk.delta.text
                 fullResponse += content
                 controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
               }
+
+              // Log every 50th chunk to avoid spam
+              // if (chunkCount % 50 === 0) {
+              //   console.log(`📊 Processed ${chunkCount} chunks, response length: ${fullResponse.length}`)
+              // }
             }
+
+            const endTime = Date.now()
+            // console.log('✅ Anthropic request completed:', {
+            //   totalTime: endTime - startTime + 'ms',
+            //   timeToFirstChunk: firstChunkTime - startTime + 'ms',
+            //   totalChunks: chunkCount,
+            //   responseLength: fullResponse.length,
+            //   tokensEstimate: Math.ceil(fullResponse.length / 4) // rough estimate
+            // })
           } else if (model.startsWith('gemini-')) {
             const apiKey = config.geminiApiKey
             if (!apiKey) {

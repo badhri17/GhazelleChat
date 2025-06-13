@@ -1,5 +1,6 @@
 <template>
-  <div class="min-h-screen bg-fixed bg-cover bg-center bg-no-repeat" :style="{ backgroundImage: `url(/images/bg1-dark.webp)` }">
+  <div>
+    <img :src="getCurrentBackgroundPath" class="fixed inset-0 w-full h-full object-cover -z-10" />
     <div class="min-h-screen bg-transparent">
       <NuxtPage />
       <Toaster />
@@ -11,7 +12,7 @@
 import { Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 
-// Import the background image
+const { getCurrentBackgroundPath } = useBackground();
 </script>
 
 <style>

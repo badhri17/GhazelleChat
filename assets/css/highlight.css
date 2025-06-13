@@ -1,0 +1,281 @@
+/* Custom highlight.js theme for GhazelleChat */
+
+.hljs {
+  display: block;
+  overflow-x: auto;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+/* Light mode styles */
+.hljs-comment,
+.hljs-quote {
+  color: #6a737d;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: #d73a49;
+  font-weight: bold;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag .hljs-attr {
+  color: #005cc5;
+}
+
+.hljs-string,
+.hljs-doctag {
+  color: #032f62;
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id {
+  color: #6f42c1;
+  font-weight: bold;
+}
+
+.hljs-type,
+.hljs-class .hljs-title {
+  color: #d73a49;
+}
+
+.hljs-tag,
+.hljs-name,
+.hljs-attribute {
+  color: #22863a;
+  font-weight: normal;
+}
+
+.hljs-regexp,
+.hljs-link {
+  color: #032f62;
+}
+
+.hljs-symbol,
+.hljs-bullet {
+  color: #005cc5;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #005cc5;
+}
+
+.hljs-meta {
+  color: #6a737d;
+}
+
+.hljs-deletion {
+  background: #ffeef0;
+}
+
+.hljs-addition {
+  background: #f0fff4;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+/* Dark mode styles */
+.dark .hljs {
+  background: #2c2c2c8c;
+  color: hsl(var(--muted-foreground));
+}
+
+.dark .hljs-comment,
+.dark .hljs-quote {
+  color: #8b949e;
+  font-style: italic;
+}
+
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-subst {
+  color: #ff7b72;
+  font-weight: bold;
+}
+
+.dark .hljs-number,
+.dark .hljs-literal,
+.dark .hljs-variable,
+.dark .hljs-template-variable,
+.dark .hljs-tag .hljs-attr {
+  color: #79c0ff;
+}
+
+.dark .hljs-string,
+.dark .hljs-doctag {
+  color: #a5d6ff;
+}
+
+.dark .hljs-title,
+.dark .hljs-section,
+.dark .hljs-selector-id {
+  color: #d2a8ff;
+  font-weight: bold;
+}
+
+.dark .hljs-type,
+.dark .hljs-class .hljs-title {
+  color: #ffa657;
+}
+
+.dark .hljs-tag,
+.dark .hljs-name,
+.dark .hljs-attribute {
+  color: #7ee787;
+  font-weight: normal;
+}
+
+.dark .hljs-regexp,
+.dark .hljs-link {
+  color: #a5d6ff;
+}
+
+.dark .hljs-symbol,
+.dark .hljs-bullet {
+  color: #79c0ff;
+}
+
+.dark .hljs-built_in,
+.dark .hljs-builtin-name {
+  color: #79c0ff;
+}
+
+.dark .hljs-meta {
+  color: #8b949e;
+}
+
+.dark .hljs-deletion {
+  background: #490202;
+}
+
+.dark .hljs-addition {
+  background: #04260f;
+}
+
+/* Markdown specific styles */
+.markdown-content {
+  line-height: 1.6;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.markdown-content h1 {
+  font-size: 1.875rem;
+  border-bottom: 1px solid hsl(var(--border));
+  padding-bottom: 0.5rem;
+}
+
+.markdown-content h2 {
+  font-size: 1.5rem;
+  border-bottom: 1px solid hsl(var(--border));
+  padding-bottom: 0.25rem;
+}
+
+.markdown-content h3 {
+  font-size: 1.25rem;
+}
+
+.markdown-content h4 {
+  font-size: 1.125rem;
+}
+
+.markdown-content h5 {
+  font-size: 1rem;
+}
+
+.markdown-content h6 {
+  font-size: 0.875rem;
+}
+
+.markdown-content p {
+  margin-bottom: 1rem;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.markdown-content li {
+  margin-bottom: 0.25rem;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid hsl(var(--border));
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.markdown-content table {
+  border-collapse: collapse;
+  margin: 1rem 0;
+  width: 100%;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid hsl(var(--border));
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.markdown-content th {
+  background: hsl(var(--muted));
+  font-weight: 600;
+}
+
+.markdown-content code:not(.hljs) {
+  background: hsl(var(--muted));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.875rem;
+}
+
+.markdown-content pre {
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.markdown-content a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--primary) / 0.5);
+  transition: text-decoration-color 0.2s;
+}
+
+.markdown-content a:hover {
+  text-decoration-color: hsl(var(--primary));
+} 

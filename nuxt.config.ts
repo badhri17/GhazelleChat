@@ -22,7 +22,7 @@ export default defineNuxtConfig({
       tailwindcss(),
     ],
   },
-  css: ["~/assets/css/tailwind.css"],
+  css: ["~/assets/css/tailwind.css", "~/assets/css/highlight.css"],
   shadcn: {
     /**
      * Prefix for all the imported component

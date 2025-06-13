@@ -21,6 +21,8 @@
           Anthropic
         </SelectLabel>
         <SelectItem value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet</SelectItem>
+        <SelectItem value="claude-sonnet-4-20250514">Claude Sonnet 4</SelectItem>
+        <SelectItem value="claude-opus-4-20250514">Claude Opus 4</SelectItem>
       </SelectGroup>
       <SelectGroup>
         <SelectLabel class="flex items-center gap-2">
