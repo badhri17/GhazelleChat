@@ -17,11 +17,12 @@
           v-for="message in messages"
           :key="message.id"
           :message="message"
+          :conversation-id="props.conversationId || undefined"
         />
 
         <!-- Loading Message -->
         <div  class="flex gap-3">
-          <div v-if="isLoading && !streamingMessage" class="max-w-[80%]  p-3 backdrop-blur-xl border-none bg-background/20 rounded-lg">
+          <div v-if="isLoading && !streamingMessage" class="max-w-[80%]  p-3 backdrop-blur-xl border-none bg-background/20 rounded-lg mb-16">
             <div class="text-xs text-muted-foreground mb-2 font-mono">
               {{ selectedModel }}
             </div>
@@ -36,6 +37,7 @@
         <ChatMessage
           v-if="streamingMessage"
           :message="streamingMessage"
+          :conversation-id="props.conversationId || undefined"
           :is-streaming="true"
         />
       </div>
@@ -55,6 +57,7 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   model?: string
+  status?: string
   createdAt: Date
 }
 
@@ -81,16 +84,100 @@ const inputMessage = ref('')
 const messages = ref<Message[]>([])
 const streamingMessage = ref<Message | null>(null)
 const isLoading = ref(false)
+const isStreaming = ref(false)
 const textareaRef = ref()
+const abortController = ref<AbortController | null>(null)
 
 // Watch for conversation changes
 watch(() => props.conversationId, async (newId) => {
   if (newId) {
     await loadMessages(newId)
+    // Check for streaming messages and start polling
+    startPollingForStreaming()
   } else {
     messages.value = []
+    stopPolling()
   }
 }, { immediate: true })
+
+const pollingInterval = ref<NodeJS.Timeout | null>(null)
+
+function startPollingForStreaming() {
+  // Stop any existing polling
+  stopPolling()
+  
+  // Check if we have any streaming messages
+  const streamingMessages = messages.value.filter(msg => msg.status === 'streaming')
+  
+  if (streamingMessages.length > 0) {
+    console.log('📡 Found streaming messages, starting to poll for updates')
+    
+    pollingInterval.value = setInterval(async () => {
+      await pollStreamingMessages()
+    }, 1000) // Poll every second
+  }
+}
+
+function stopPolling() {
+  if (pollingInterval.value) {
+    clearInterval(pollingInterval.value)
+    pollingInterval.value = null
+  }
+}
+
+async function pollStreamingMessages() {
+  const streamingMessages = messages.value.filter(msg => msg.status === 'streaming')
+  
+  if (streamingMessages.length === 0) {
+    stopPolling()
+    return
+  }
+  
+  for (const message of streamingMessages) {
+    try {
+      const response = await fetch(`/api/messages/${message.id}/content`)
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Update message content if it changed
+        if (data.content !== message.content) {
+          const messageIndex = messages.value.findIndex(m => m.id === message.id)
+          if (messageIndex !== -1) {
+            messages.value[messageIndex] = {
+              ...messages.value[messageIndex],
+              content: data.content,
+              status: data.status
+            }
+            
+            // Scroll to bottom when content updates
+            nextTick(() => {
+              scrollToBottom()
+            })
+          }
+        }
+        
+        // If message is complete, stop polling for it
+        if (data.status === 'complete') {
+          console.log('✅ Message completed:', message.id)
+        }
+      }
+    } catch (error) {
+      console.error('Error polling message:', message.id, error)
+    }
+  }
+  
+  // Check if all messages are complete
+  const stillStreaming = messages.value.some(msg => msg.status === 'streaming')
+  if (!stillStreaming) {
+    stopPolling()
+    console.log('🏁 All messages completed, stopping poll')
+  }
+}
+
+// Clean up polling on unmount
+onUnmounted(() => {
+  stopPolling()
+})
 
 async function loadMessages(conversationId: string) {
   try {
@@ -121,12 +208,72 @@ function addNewLine() {
   inputMessage.value += '\n'
 }
 
+function stopStreaming() {
+  console.log('🛑 Stopping stream manually')
+  
+  // Abort the request first
+  if (abortController.value) {
+    abortController.value.abort()
+    abortController.value = null
+  }
+  
+  // Clean up states
+  isLoading.value = false
+  isStreaming.value = false
+  
+  // If there's a partial streaming message, keep it and mark as incomplete
+  if (streamingMessage.value && streamingMessage.value.content.trim()) {
+    console.log('💾 Preserving partial message:', streamingMessage.value.content.length + ' characters')
+    
+    // Mark the message as incomplete in the database
+    if (streamingMessage.value.id) {
+      fetch(`/api/messages/${streamingMessage.value.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'incomplete' })
+      }).catch(err => console.error('Failed to update message status:', err))
+    }
+    
+    // Add to messages with incomplete status
+    messages.value.push({
+      ...streamingMessage.value,
+      status: 'incomplete'
+    })
+  }
+  streamingMessage.value = null
+  
+  // Focus textarea
+  nextTick(() => {
+    const textarea = textareaRef.value?.$el || textareaRef.value
+    if (textarea && textarea.focus) {
+      textarea.focus()
+    }
+  })
+}
+
 async function sendMessage() {
+  // If currently streaming, stop it
+  if (isStreaming.value) {
+    stopStreaming()
+    return
+  }
+  
   if (!inputMessage.value.trim() || isLoading.value) return
 
   const userMessage = inputMessage.value.trim()
   inputMessage.value = ''
   isLoading.value = true
+  isStreaming.value = false
+  
+  // Clean up any existing abort controller first
+  if (abortController.value) {
+    abortController.value = null
+  }
+  
+  // Create new abort controller
+  abortController.value = new AbortController()
+  
+  console.log('🚀 Starting new request with fresh AbortController')
 
   // Add user message to UI immediately
   const userMsg: Message = {
@@ -142,6 +289,11 @@ async function sendMessage() {
   })
 
   try {
+    console.log('🌐 Making fetch request, controller status:', {
+      hasController: !!abortController.value,
+      signalAborted: abortController.value?.signal.aborted
+    })
+    
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
@@ -151,7 +303,8 @@ async function sendMessage() {
         message: userMessage,
         conversationId: props.conversationId,
         model: selectedModel.value
-      })
+      }),
+      signal: abortController.value?.signal
     })
 
     if (!response.ok) throw new Error('Failed to send message')
@@ -181,8 +334,9 @@ async function sendMessage() {
                   model: selectedModel.value,
                   createdAt: new Date()
                 }
-                // Clear loading state on first content chunk
+                // Clear loading state and set streaming state on first content chunk
                 isLoading.value = false
+                isStreaming.value = true
               }
               streamingMessage.value.content += data.content
               
@@ -200,6 +354,8 @@ async function sendMessage() {
               // Move streaming message to messages array
               messages.value.push({...streamingMessage.value!})
               streamingMessage.value = null
+              isStreaming.value = false
+              abortController.value = null
               
               // Final scroll to bottom when streaming is complete
               nextTick(() => {
@@ -213,11 +369,26 @@ async function sendMessage() {
       }
     }
   } catch (error) {
+    const errorName = (error as Error)?.name
+    
+    // Don't log or handle AbortError - it's intentional
+    if (errorName === 'AbortError') {
+      console.log('🛑 Request aborted by user')
+      return // Exit early, don't process as error
+    }
+    
     console.error('Chat error:', error)
+    // Could add error message to UI here for real errors
+    
+    // For real errors, preserve partial content if any
+    if (streamingMessage.value && streamingMessage.value.content.trim()) {
+      messages.value.push({...streamingMessage.value})
+    }
     streamingMessage.value = null
-    // Could add error message to UI here
   } finally {
     isLoading.value = false
+    isStreaming.value = false
+    abortController.value = null
     
     // Focus textarea and scroll to bottom
     nextTick(() => {
@@ -256,6 +427,7 @@ onMounted(() => {
 defineExpose({
   sendMessage,
   addNewLine,
+  stopStreaming,
   focusInput: () => {
     nextTick(() => {
       const textarea = textareaRef.value?.$el || textareaRef.value
@@ -266,6 +438,7 @@ defineExpose({
   },
   inputMessage,
   isLoading,
+  isStreaming,
   textareaRef,
   selectedModel
 })

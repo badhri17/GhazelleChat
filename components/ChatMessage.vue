@@ -43,6 +43,22 @@
       >
         <Icon name="lucide:copy" class="w-3 h-3 cursor-pointer" />
       </Button>
+      
+      <!-- Status indicator for streaming messages -->
+      <div v-if="message.status === 'streaming' && !isStreaming" class="mt-2">
+        <span class="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+          <Icon name="lucide:wifi" class="w-3 h-3 animate-pulse" />
+          Generating in background...
+        </span>
+      </div>
+      
+      <!-- Status indicator for incomplete messages -->
+      <div v-if="message.status === 'incomplete' && !isStreaming" class="mt-2">
+        <span class="text-xs text-orange-600 dark:text-orange-400 flex items-center gap-1">
+          <Icon name="lucide:pause-circle" class="w-3 h-3" />
+          Generation was stopped
+        </span>
+      </div>
     </div>
 
   </div>
@@ -57,12 +73,14 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   model?: string
+  status?: string
   createdAt: Date
 }
 
 interface Props {
   message: Message
   isStreaming?: boolean
+  conversationId?: string
 }
 
 const props = defineProps<Props>()
@@ -104,6 +122,5 @@ async function copyMessage() {
       duration: 2000
     })
   }
-};
-
+}
 </script> 

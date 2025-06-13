@@ -16,16 +16,17 @@
           />
           <Button 
             type="submit" 
-            :disabled="!inputMessage.trim() || isLoading"
+            :disabled="!inputMessage.trim() && !isStreaming && !isLoading"
             size="icon"
             :class="[
               'h-9 w-9 text-primary-foreground rounded-xl transition-all duration-300 flex-shrink-0 relative cursor-pointer',
-              !inputMessage.trim() || isLoading 
+              (!inputMessage.trim() && !isStreaming && !isLoading)
                 ? 'bg-muted text-muted-foreground cursor-not-allowed' 
                 : 'bg-primary hover:bg-primary/90 glow-button'
             ]"
           >
             <Icon v-if="isLoading" name="lucide:loader-2" class="w-5 h-5 animate-spin" />
+            <Icon v-else-if="isStreaming" name="lucide:square" class="w-4 h-4" />
             <Icon v-else name="lucide:arrow-up" class="w-5 h-5" />
           </Button>
         </div>
@@ -40,15 +41,18 @@ import { useSidebar } from '@/components/ui/sidebar'
 interface Props {
   modelValue: string
   isLoading?: boolean
+  isStreaming?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  isLoading: false
+  isLoading: false,
+  isStreaming: false
 })
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
   'send-message': [message: string]
+  'stop-streaming': []
 }>()
 
 const textareaRef = ref()
@@ -67,7 +71,18 @@ function handleAddNewLine() {
 }
 
 function handleSendMessage() {
-  if (inputMessage.value.trim() && !props.isLoading) {
+  console.log('🎯 ChatInput handleSendMessage called', {
+    isStreaming: props.isStreaming,
+    isLoading: props.isLoading,
+    hasMessage: !!inputMessage.value.trim()
+  })
+  
+  if (props.isStreaming) {
+    console.log('🛑 Emitting stop-streaming event')
+    // If streaming, emit stop event instead
+    emit('stop-streaming')
+  } else if (inputMessage.value.trim() && !props.isLoading) {
+    console.log('📤 Emitting send-message event')
     emit('send-message', inputMessage.value.trim())
   }
 }

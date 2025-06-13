@@ -36,7 +36,9 @@
       <ChatInput 
         v-model="inputMessage"
         :is-loading="isLoading"
+        :is-streaming="isStreaming"
         @send-message="handleSendMessage"
+        @stop-streaming="handleStopStreaming"
       />
     </div>
   </SidebarProvider>
@@ -81,6 +83,7 @@ const conversations = ref(conversationsData.value?.conversations?.map((conv: any
 const chatInterfaceRef = ref()
 const inputMessage = ref('')
 const isLoading = ref(false)
+const isStreaming = ref(false)
 const selectedModel = ref('gpt-4o-mini')
 
 
@@ -88,6 +91,13 @@ const selectedModel = ref('gpt-4o-mini')
 watch(() => chatInterfaceRef.value?.isLoading, (newVal) => {
   if (newVal !== undefined) {
     isLoading.value = newVal
+  }
+}, { deep: true })
+
+// Watch for streaming state changes from ChatInterface
+watch(() => chatInterfaceRef.value?.isStreaming, (newVal) => {
+  if (newVal !== undefined) {
+    isStreaming.value = newVal
   }
 }, { deep: true })
 
@@ -108,11 +118,19 @@ function handleAddNewLine() {
 }
 
 function handleSendMessage(message: string) {
+  console.log('📨 Page handleSendMessage called with:', message)
   if (chatInterfaceRef.value && message.trim()) {
     // Set the input message in the chat interface and trigger send
     chatInterfaceRef.value.inputMessage = message
     chatInterfaceRef.value.sendMessage()
     inputMessage.value = ''
+  }
+}
+
+function handleStopStreaming() {
+  console.log('🚫 Page handleStopStreaming called')
+  if (chatInterfaceRef.value) {
+    chatInterfaceRef.value.stopStreaming()
   }
 }
 

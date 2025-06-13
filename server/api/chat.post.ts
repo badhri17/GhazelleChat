@@ -1,5 +1,4 @@
-import { eq } from 'drizzle-orm'
-import { asc } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
 import { z } from 'zod'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
@@ -78,6 +77,7 @@ export default defineEventHandler(async (event) => {
       conversationId: currentConversationId,
       role: 'user',
       content: message,
+      status: 'complete',
       createdAt: new Date()
     })
 
@@ -96,11 +96,76 @@ export default defineEventHandler(async (event) => {
     setHeader(event, 'Cache-Control', 'no-cache')
     setHeader(event, 'Connection', 'keep-alive')
 
+    // Check if client disconnected - but don't abort LLM generation
+    let clientDisconnected = false
+    
+    // More comprehensive disconnect detection - but we keep generating!
+    event.node.req.on('close', () => {
+      if (!clientDisconnected) {
+        clientDisconnected = true
+        console.log('🔌 Client disconnected, but continuing generation...')
+      }
+    })
+    
+    event.node.req.on('aborted', () => {
+      if (!clientDisconnected) {
+        clientDisconnected = true
+        console.log('🔌 Client connection aborted, but continuing generation...')
+      }
+    })
+    
+    event.node.req.on('error', (err) => {
+      if (!clientDisconnected) {
+        clientDisconnected = true
+        console.log('🔌 Client connection error, but continuing generation:', err.message)
+      }
+    })
+    
+    // Also listen for response events
+    event.node.res.on('close', () => {
+      if (!clientDisconnected) {
+        clientDisconnected = true
+        console.log('🔌 Response closed, but continuing generation...')
+      }
+    })
+    
+    console.log('📡 Starting streaming response, connection status:', {
+      destroyed: event.node.req.destroyed,
+      aborted: event.node.req.aborted,
+      complete: event.node.req.complete,
+      readableEnded: event.node.req.readableEnded,
+      closed: event.node.req.closed
+    })
+
     const stream = new ReadableStream({
       async start(controller) {
         let fullResponse = ''
+        let assistantMessageId = ''
+
+        // Check if client already disconnected via our event listeners
+        if (clientDisconnected) {
+          console.log('🛑 Connection lost before LLM request, aborting')
+          controller.close()
+          return
+        }
 
         try {
+          // Create initial streaming message with a unique stream ID
+          assistantMessageId = nanoid()
+          const streamId = nanoid() // Unique stream identifier
+          
+          await db.insert(messages).values({
+            id: assistantMessageId,
+            conversationId: currentConversationId,
+            role: 'assistant',
+            content: '',
+            model,
+            status: 'streaming',
+            createdAt: new Date()
+          })
+
+          console.log('🚀 Starting stream:', streamId, 'for message:', assistantMessageId)
+
           if (model.startsWith('gpt-')) {
             const openai = new OpenAI({
               apiKey: config.openaiApiKey
@@ -123,6 +188,12 @@ export default defineEventHandler(async (event) => {
             const startTime = Date.now()
             console.log('⏱️ Starting OpenAI request at:', new Date().toISOString())
 
+            // Create AbortController for OpenAI request
+            const openaiAbortController = new AbortController()
+            
+            // Note: We don't abort generation when client disconnects
+            // Generation continues in background and saves to database
+
             const stream = await openai.chat.completions.create({
               ...requestPayload,
               stream: true
@@ -142,7 +213,26 @@ export default defineEventHandler(async (event) => {
               
               if (content) {
                 fullResponse += content
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+                
+                // Update database in real-time with new content
+                await db.update(messages)
+                  .set({ content: fullResponse })
+                  .where(eq(messages.id, assistantMessageId))
+                
+                try {
+                  // Only send to client if still connected
+                  if (!clientDisconnected) {
+                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+                  }
+                } catch (e) {
+                  // Stream might be closed if client disconnected
+                  if ((e as Error)?.message?.includes('closed')) {
+                    console.log('🔌 Client stream closed, but continuing generation in background')
+                    clientDisconnected = true
+                  } else {
+                    throw e
+                  }
+                }
               }
 
               // Log every 50th chunk to avoid spam
@@ -177,6 +267,12 @@ export default defineEventHandler(async (event) => {
             const startTime = Date.now()
             // console.log('⏱️ Starting Anthropic request at:', new Date().toISOString())
 
+            // Create AbortController for Anthropic request
+            const anthropicAbortController = new AbortController()
+            
+            // Note: We don't abort generation when client disconnects
+            // Generation continues in background and saves to database
+
             const stream = await anthropic.messages.create({
               model,
               max_tokens: maxTokens,
@@ -198,7 +294,26 @@ export default defineEventHandler(async (event) => {
               if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
                 const content = chunk.delta.text
                 fullResponse += content
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+                
+                // Update database in real-time with new content
+                await db.update(messages)
+                  .set({ content: fullResponse })
+                  .where(eq(messages.id, assistantMessageId))
+                
+                try {
+                  // Only send to client if still connected
+                  if (!clientDisconnected) {
+                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+                  }
+                } catch (e) {
+                  // Stream might be closed if client disconnected
+                  if ((e as Error)?.message?.includes('closed')) {
+                    console.log('🔌 Client stream closed, but continuing Anthropic generation in background')
+                    clientDisconnected = true
+                  } else {
+                    throw e
+                  }
+                }
               }
 
               // Log every 50th chunk to avoid spam
@@ -221,7 +336,6 @@ export default defineEventHandler(async (event) => {
               throw new Error('Missing Gemini API key')
             }
 
-            // Convert chat history to Gemini format
             const googleMessages = chatMessages.map((msg) => ({
               role: msg.role === 'user' ? 'user' : 'model',
               parts: [{ text: msg.content }]
@@ -229,6 +343,11 @@ export default defineEventHandler(async (event) => {
 
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`;
 
+            // Create AbortController for Gemini request
+            const geminiAbortController = new AbortController()
+            
+            // Note: We don't abort generation when client disconnects
+            // Generation continues in background and saves to database
 
             const response = await fetch(url, {
               method: 'POST',
@@ -255,39 +374,70 @@ export default defineEventHandler(async (event) => {
             const decoder = new TextDecoder()
             let buffer = ''
 
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done) break
+            try {
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
 
-              buffer += decoder.decode(value, { stream: true })
-
-              // Parse comma-separated JSON objects
-              // Remove array brackets if present
-              let cleanBuffer = buffer.replace(/^\[/, '').replace(/\]$/, '')
-              
-              // Try to find complete JSON objects separated by commas
-              const possibleObjects = cleanBuffer.split(/,(?=\s*{)/)
-              
-              // Keep the last incomplete object in buffer
-              if (possibleObjects.length > 1) {
-                buffer = possibleObjects.pop() || ''
+                buffer += decoder.decode(value, { stream: true })
+                let cleanBuffer = buffer.replace(/^\[/, '').replace(/\]$/, '')
                 
-                for (const objStr of possibleObjects) {
-                  const trimmedObj = objStr.trim()
-                  if (!trimmedObj) continue
+                const possibleObjects = cleanBuffer.split(/,(?=\s*{)/)
+                
+                // Keep the last incomplete object in buffer
+                if (possibleObjects.length > 1) {
+                  buffer = possibleObjects.pop() || ''
                   
-                  try {
-                    const data = JSON.parse(trimmedObj)
+                  for (const objStr of possibleObjects) {
+                    const trimmedObj = objStr.trim()
+                    if (!trimmedObj) continue
                     
-                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-                    if (text) {
-                      fullResponse += text
-                      controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
+                    try {
+                      const data = JSON.parse(trimmedObj)
+                      
+                      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+                      if (text) {
+                        fullResponse += text
+                        
+                        // Update database in real-time with new content
+                        await db.update(messages)
+                          .set({ content: fullResponse })
+                          .where(eq(messages.id, assistantMessageId))
+                        
+                        try {
+                          // Only send to client if still connected
+                          if (!clientDisconnected) {
+                            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
+                          }
+                        } catch (e) {
+                          // Stream might be closed if client disconnected
+                          if ((e as Error)?.message?.includes('closed')) {
+                            console.log('🔌 Client stream closed, but continuing Gemini generation in background')
+                            clientDisconnected = true
+                          } else {
+                            throw e
+                          }
+                        }
+                      }
+                    } catch (e) {
+                      console.warn('⚠️ Failed to parse Gemini chunk:', trimmedObj.slice(0, 100), e)
                     }
-                  } catch (e) {
-                    console.warn('⚠️ Failed to parse Gemini chunk:', trimmedObj.slice(0, 100), e)
                   }
                 }
+              }
+            } catch (error) {
+              if ((error as Error)?.name === 'AbortError') {
+                console.log('🛑 Gemini reader aborted successfully')
+              } else {
+                console.error('❌ Error reading Gemini stream:', error)
+                throw error
+              }
+            } finally {
+              // Ensure reader is properly closed
+              try {
+                reader.releaseLock()
+              } catch (e) {
+                // Reader might already be closed
               }
             }
 
@@ -301,7 +451,26 @@ export default defineEventHandler(async (event) => {
                   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
                   if (text) {
                     fullResponse += text
-                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
+                    
+                    // Update database in real-time with new content
+                    await db.update(messages)
+                      .set({ content: fullResponse })
+                      .where(eq(messages.id, assistantMessageId))
+                    
+                    try {
+                      // Only send to client if still connected
+                      if (!clientDisconnected) {
+                        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
+                      }
+                    } catch (e) {
+                      // Stream might be closed if client disconnected
+                      if ((e as Error)?.message?.includes('closed')) {
+                        console.log('🔌 Client stream closed during final Gemini processing')
+                        clientDisconnected = true
+                      } else {
+                        throw e
+                      }
+                    }
                   }
                 } catch (e) {
                   console.warn('⚠️ Failed to parse final Gemini chunk:', cleanBuffer.slice(0, 100), e)
@@ -314,6 +483,12 @@ export default defineEventHandler(async (event) => {
               apiKey: config.groqApiKey
             })
 
+            // Create AbortController for Groq request
+            const groqAbortController = new AbortController()
+            
+            // Note: We don't abort generation when client disconnects
+            // Generation continues in background and saves to database
+
             const stream = await groq.chat.completions.create({
               model,
               messages: chatMessages,
@@ -324,26 +499,60 @@ export default defineEventHandler(async (event) => {
               const content = chunk.choices[0]?.delta?.content || ''
               if (content) {
                 fullResponse += content
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+                
+                // Update database in real-time with new content
+                await db.update(messages)
+                  .set({ content: fullResponse })
+                  .where(eq(messages.id, assistantMessageId))
+                
+                try {
+                  // Only send to client if still connected
+                  if (!clientDisconnected) {
+                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+                  }
+                } catch (e) {
+                  // Stream might be closed if client disconnected
+                  if ((e as Error)?.message?.includes('closed')) {
+                    console.log('🔌 Client stream closed, but continuing Groq generation in background')
+                    clientDisconnected = true
+                  } else {
+                    throw e
+                  }
+                }
               }
             }
           }
 
-          // Save assistant message
-          const assistantMessageId = nanoid()
-          await db.insert(messages).values({
-            id: assistantMessageId,
-            conversationId: currentConversationId,
-            role: 'assistant',
-            content: fullResponse,
-            model,
-            createdAt: new Date()
-          })
+          // Save message if we have any content
+          if (fullResponse.trim()) {
+            // Update the existing message with final content and status
+            // Mark as complete since generation finished normally
+            await db.update(messages)
+              .set({ 
+                content: fullResponse,
+                status: 'complete'
+              })
+              .where(eq(messages.id, assistantMessageId))
 
-          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
-            conversationId: currentConversationId,
-            done: true 
-          })}\n\n`))
+            console.log('💾 Updated complete response in database:', fullResponse.length + ' characters')
+            
+            try {
+              // Try to send completion signal if client still connected
+              if (!clientDisconnected) {
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
+                  conversationId: currentConversationId,
+                  done: true 
+                })}\n\n`))
+              }
+            } catch (e) {
+              // Stream might be closed, but that's ok since we already saved the message
+              console.log('🔌 Stream closed while sending completion signal, but message saved as complete')
+            }
+          } else {
+            // Delete the empty message if no content was generated
+            await db.delete(messages).where(eq(messages.id, assistantMessageId))
+            console.log('🛑 Deleted empty message (no content generated)')
+          }
           
         } catch (error) {
           console.error('❌ Chat error details:', {
