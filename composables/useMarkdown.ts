@@ -11,18 +11,17 @@ export const useMarkdown = () => {
   // Set up renderer with syntax highlighting
   const renderer = new marked.Renderer()
   renderer.code = function({ text, lang }: { text: string; lang?: string }) {
-    const escapedText = text.replace(/'/g, '&#39;').replace(/"/g, '&quot;')
     const codeId = `code-${Math.random().toString(36).substr(2, 9)}`
     
     if (lang && hljs.getLanguage(lang)) {
       try {
         const highlighted = hljs.highlight(text, { language: lang }).value
         return `
-          <div class="code-block-wrapper">
+          <div class="code-block-wrapper" data-code="${btoa(text)}">
             <pre><code class="hljs language-${lang}" id="${codeId}">${highlighted}</code></pre>
             <button 
               class="code-copy-btn" 
-              onclick="copyCodeBlock('${codeId}', '${escapedText}')"
+              onclick="copyCodeBlock('${codeId}')"
               title="Copy code"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -37,11 +36,11 @@ export const useMarkdown = () => {
     }
     const autoHighlighted = hljs.highlightAuto(text)
     return `
-      <div class="code-block-wrapper">
+      <div class="code-block-wrapper" data-code="${btoa(text)}">
         <pre><code class="hljs" id="${codeId}">${autoHighlighted.value}</code></pre>
         <button 
           class="code-copy-btn" 
-          onclick="copyCodeBlock('${codeId}', '${escapedText}')"
+          onclick="copyCodeBlock('${codeId}')"
           title="Copy code"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

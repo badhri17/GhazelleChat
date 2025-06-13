@@ -1,16 +1,20 @@
+import { toast } from 'vue-sonner'
+
 export default defineNuxtPlugin(() => {
   // Add global function for copying code blocks
   if (process.client) {
-    (window as any).copyCodeBlock = async (codeId: string, rawText: string) => {
+    (window as any).copyCodeBlock = async (codeId: string) => {
       try {
-        // Decode HTML entities back to original text
-        const decodedText = rawText
-          .replace(/&#39;/g, "'")
-          .replace(/&quot;/g, '"')
-          .replace(/&amp;/g, '&')
-          .replace(/&lt;/g, '<')
-          .replace(/&gt;/g, '>')
-
+        // Get the code text from the data attribute
+        const codeElement = document.getElementById(codeId)
+        const wrapper = codeElement?.closest('.code-block-wrapper') as HTMLElement
+        const encodedText = wrapper?.dataset.code
+        
+        if (!encodedText) {
+          throw new Error('Code text not found')
+        }
+        
+        const decodedText = atob(encodedText)
         await navigator.clipboard.writeText(decodedText)
         
         // Show success feedback
@@ -30,10 +34,9 @@ export default defineNuxtPlugin(() => {
           }, 2000)
         }
         
-        // Optional: Show toast notification
-        if ((window as any).$toast) {
-          (window as any).$toast.success('Code copied to clipboard')
-        }
+        toast.success('Code copied to clipboard', {
+          duration: 2000
+        })
       } catch (error) {
         console.error('Failed to copy code:', error)
         
@@ -70,11 +73,10 @@ export default defineNuxtPlugin(() => {
             button.style.color = ''
           }, 2000)
         }
-        
-        // Optional: Show error toast notification
-        if ((window as any).$toast) {
-          (window as any).$toast.error('Failed to copy code')
-        }
+        toast.error('Failed to copy code', {
+          description: 'Please try again or copy manually.',
+          duration: 2000
+        })
       }
     }
   }

@@ -247,8 +247,10 @@ onMounted(() => {
     if (textarea && textarea.focus) {
       textarea.focus()
     }
-  })
+  });
+  
 })
+
 
 // Expose methods for parent component
 defineExpose({

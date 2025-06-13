@@ -95,8 +95,7 @@ async function copyMessage() {
   try {
     await navigator.clipboard.writeText(props.message.content)
     toast.success('Message copied to clipboard', {
-      description: 'The message content has been copied to your clipboard.',
-      duration: 3000
+      duration: 2000
     })
   } catch (error) {
     console.error('Failed to copy message:', error)
@@ -105,5 +104,6 @@ async function copyMessage() {
       duration: 2000
     })
   }
-}
+};
+
 </script> 
