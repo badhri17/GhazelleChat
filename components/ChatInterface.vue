@@ -86,7 +86,8 @@ const streamingMessage = ref<Message | null>(null)
 const isLoading = ref(false)
 const isStreaming = ref(false)
 const textareaRef = ref()
-const abortController = ref<AbortController | null>(null)
+
+const pollingInterval = ref<NodeJS.Timeout | null>(null)
 
 // Watch for conversation changes
 watch(() => props.conversationId, async (newId) => {
@@ -99,8 +100,6 @@ watch(() => props.conversationId, async (newId) => {
     stopPolling()
   }
 }, { immediate: true })
-
-const pollingInterval = ref<NodeJS.Timeout | null>(null)
 
 function startPollingForStreaming() {
   // Stop any existing polling
@@ -210,218 +209,148 @@ function addNewLine() {
 
 function stopStreaming() {
   console.log('🛑 Stopping stream manually')
-  
-  // Abort the request first
-  if (abortController.value) {
-    abortController.value.abort()
-    abortController.value = null
-  }
-  
+
   // Clean up states
   isLoading.value = false
   isStreaming.value = false
-  
-  // If there's a partial streaming message, keep it and mark as incomplete
-  if (streamingMessage.value && streamingMessage.value.content.trim()) {
-    console.log('💾 Preserving partial message:', streamingMessage.value.content.length + ' characters')
+
+  // If there's a partial streaming message, call the stop endpoint
+  if (streamingMessage.value && streamingMessage.value.id) {
+    const messageToStopId = streamingMessage.value.id
+    console.log('🚀 Sending stop request for message ID:', messageToStopId)
     
-    // Mark the message as incomplete in the database
-    if (streamingMessage.value.id) {
-      fetch(`/api/messages/${streamingMessage.value.id}/stop`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' }
-      }).catch(err => console.error('Failed to stop message:', err))
-    }
-    
-    // Add to messages with incomplete status
-    messages.value.push({
-      ...streamingMessage.value,
-      status: 'incomplete'
-    })
-  }
-  
-  // Also stop any messages that might be streaming in background
-  const backgroundStreamingMessages = messages.value.filter(msg => msg.status === 'streaming')
-  for (const message of backgroundStreamingMessages) {
-    fetch(`/api/messages/${message.id}/stop`, {
+    fetch(`/api/messages/${messageToStopId}/stop`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' }
-    }).then(() => {
-      // Update local status immediately
-      const index = messages.value.findIndex(m => m.id === message.id)
-      if (index !== -1) {
-        messages.value[index] = {
-          ...messages.value[index],
-          status: 'incomplete'
-        }
-      }
-    }).catch(err => console.error('Failed to stop background message:', err))
-  }
-  
-  streamingMessage.value = null
-  
-  // Focus textarea
-  nextTick(() => {
-    const textarea = textareaRef.value?.$el || textareaRef.value
-    if (textarea && textarea.focus) {
-      textarea.focus()
+    }).then(res => {
+      if (res.ok) console.log('✅ Stop request successful for', messageToStopId)
+      else console.error('❌ Stop request failed for', messageToStopId)
+    }).catch(err => console.error('Failed to send stop signal:', err))
+    
+    // If there's partial content, add the message to the list as incomplete
+    if (streamingMessage.value.content.trim()) {
+      console.log('💾 Preserving partial message:', streamingMessage.value.content.length + ' characters')
+      messages.value.push({
+        ...streamingMessage.value,
+        status: 'incomplete'
+      })
     }
-  })
+  }
+
+  streamingMessage.value = null
 }
 
 async function sendMessage() {
-  // If currently streaming, stop it
-  if (isStreaming.value) {
-    stopStreaming()
-    return
-  }
-  
-  if (!inputMessage.value.trim() || isLoading.value) return
+  if (inputMessage.value.trim() === '') return
 
-  const userMessage = inputMessage.value.trim()
-  inputMessage.value = ''
   isLoading.value = true
-  isStreaming.value = false
-  
-  // Clean up any existing abort controller first
-  if (abortController.value) {
-    abortController.value = null
-  }
-  
-  // Create new abort controller
-  abortController.value = new AbortController()
-  
-  console.log('🚀 Starting new request with fresh AbortController')
+  isStreaming.value = true
 
-  // Add user message to UI immediately
-  const userMsg: Message = {
-    id: Date.now().toString(),
+  const userMessage: Message = {
+    id: Date.now().toString(), // Temporary ID
     role: 'user',
-    content: userMessage,
+    content: inputMessage.value,
     createdAt: new Date()
   }
-  messages.value.push(userMsg)
-
-  nextTick(() => {
-    scrollToBottom()
-  })
-
+  messages.value.push(userMessage)
+  
+  const currentConversationId = props.conversationId
+  
+  const prompt = inputMessage.value
+  inputMessage.value = '' // Clear input
+  
   try {
-    console.log('🌐 Making fetch request, controller status:', {
-      hasController: !!abortController.value,
-      signalAborted: abortController.value?.signal.aborted
-    })
-    
     const response = await fetch('/api/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: userMessage,
-        conversationId: props.conversationId,
+        message: prompt,
+        conversationId: currentConversationId,
         model: selectedModel.value
-      }),
-      signal: abortController.value?.signal
+      })
     })
 
-    if (!response.ok) throw new Error('Failed to send message')
-
-    const reader = response.body?.getReader()
-    if (!reader) throw new Error('No response body')
+    if (!response.body) {
+      throw new Error('No response body')
+    }
+    
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
 
     while (true) {
       const { done, value } = await reader.read()
-      if (done) break
-
-      const chunk = new TextDecoder().decode(value)
-      const lines = chunk.split('\n')
+      if (done) {
+        if (streamingMessage.value && streamingMessage.value.content) {
+          messages.value.push({ ...streamingMessage.value, status: 'complete' })
+        }
+        break
+      }
+      
+      const chunk = decoder.decode(value, { stream: true })
+      // SSE sends data in `data: { ... }` format, often with multiple lines
+      const lines = chunk.split('\n').filter(line => line.trim().startsWith('data:'))
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6))
+        const jsonStr = line.replace('data: ', '')
+        try {
+          const data = JSON.parse(jsonStr)
+
+          if (data.error) {
+            throw new Error(data.error)
+          }
+          
+          // First chunk of data, create the streaming message object
+          if (streamingMessage.value === null && (data.messageId || data.content)) {
+            isLoading.value = false // We're now streaming, not just thinking
+            streamingMessage.value = {
+              id: data.messageId || '',
+              role: 'assistant',
+              content: data.content || '',
+              model: selectedModel.value,
+              createdAt: new Date()
+            }
+          }
+
+          if (streamingMessage.value) {
+            // The very first chunk might only have the ID, content comes next
+            if (data.messageId && streamingMessage.value.id === '') {
+              streamingMessage.value.id = data.messageId
+            }
             
-            if (data.content) {
-              // Initialize streaming message on first content chunk
-              if (!streamingMessage.value) {
-                streamingMessage.value = {
-                  id: data.messageId || (Date.now() + 1).toString(), // Use real messageId from server
-                  role: 'assistant',
-                  content: '',
-                  model: selectedModel.value,
-                  createdAt: new Date()
-                }
-                // Clear loading state and set streaming state on first content chunk
-                isLoading.value = false
-                isStreaming.value = true
-              }
-              
-              // Update messageId if provided (for first chunk)
-              if (data.messageId && streamingMessage.value.id !== data.messageId) {
-                streamingMessage.value.id = data.messageId
-              }
-              
+            // If the first chunk had content, this will append subsequent content
+            if (data.content && streamingMessage.value.content !== data.content) {
               streamingMessage.value.content += data.content
-              
-              // Scroll to bottom as content is being streamed
-              nextTick(() => {
-                scrollToBottom()
-              })
             }
             
             if (data.conversationId && !props.conversationId) {
               emit('conversationCreated', data.conversationId)
             }
-            
+
             if (data.done) {
-              // Move streaming message to messages array
-              messages.value.push({...streamingMessage.value!})
-              streamingMessage.value = null
               isStreaming.value = false
-              abortController.value = null
-              
-              // Final scroll to bottom when streaming is complete
-              nextTick(() => {
-                scrollToBottom()
-              })
             }
-          } catch (e) {
-            // Skip invalid JSON
           }
+        } catch (e) {
+          console.error('Failed to parse stream chunk:', jsonStr, e)
         }
       }
+      
+      // Auto-scroll on new content
+      nextTick(() => {
+        scrollToBottom()
+      })
     }
   } catch (error) {
-    const errorName = (error as Error)?.name
-    
-    // Don't log or handle AbortError - it's intentional
-    if (errorName === 'AbortError') {
-      console.log('🛑 Request aborted by user')
-      return // Exit early, don't process as error
-    }
-    
     console.error('Chat error:', error)
-    // Could add error message to UI here for real errors
-    
-    // For real errors, preserve partial content if any
-    if (streamingMessage.value && streamingMessage.value.content.trim()) {
-      messages.value.push({...streamingMessage.value})
+    if (streamingMessage.value) {
+      streamingMessage.value.content += `\n\n**Error:** ${error instanceof Error ? error.message : 'An unknown error occurred.'}`
+      streamingMessage.value.status = 'incomplete'
+      messages.value.push(streamingMessage.value)
     }
-    streamingMessage.value = null
   } finally {
     isLoading.value = false
     isStreaming.value = false
-    abortController.value = null
-    
-    // Focus textarea and scroll to bottom
-    nextTick(() => {
-      const textarea = textareaRef.value?.$el || textareaRef.value
-      if (textarea && textarea.focus) {
-        textarea.focus()
-      }
-      scrollToBottom()
-    })
+    streamingMessage.value = null
   }
 }
 

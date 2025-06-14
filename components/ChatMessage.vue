@@ -7,8 +7,11 @@
       'max-w-[100%] rounded-lg p-3 relative group backdrop-blur-xl border-none bg-transparent',
       message.role === 'user' 
         ? 'bg-primary text-primary-foreground ml-12  backdrop-blur-4xl border-none' 
-        : 'bg-background/20 border-none'
-    )">
+        : 'bg-background/20 border-none',
+      isStreaming && 'mb-10'
+    )"
+    
+    >
       <!-- Model Badge for Assistant -->
       <div 
         v-if="message.role === 'assistant' && message.model" 
@@ -18,12 +21,19 @@
       </div>
 
       <!-- Message Text -->
-      <div 
-        class="markdown-content break-words"
-        v-html="renderedContent"
+      <div
+        class="prose prose-stone dark:prose-invert max-w-none prose-p:my-0 prose-headings:my-0"
+        :class="{ 'animate-pulse': isStreaming && !message.content }"
       >
+        <div v-if="message.content" v-html="renderedContent" />
+        <template v-else-if="isStreaming">
+          <div class="flex items-center gap-2 text-foreground">
+            <Icon name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+            <span>Thinking...</span>
+          </div>
+        </template>
       </div>
-      <span v-if="isStreaming" class="animate-pulse inline-block ml-1">|</span>
+      <span v-if="isStreaming && message.content" class="animate-pulse inline-block ml-1">|</span>
 
       <!-- Timestamp -->
       <div :class="cn(

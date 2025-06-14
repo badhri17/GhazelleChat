@@ -7,7 +7,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { db } from '~/server/db'
 import { conversations, messages } from '~/server/db/schema'
 import { lucia } from '~/server/plugins/lucia'
-import { setAbortController } from '~/server/utils/abortControllers'
+import { setAbortController, removeAbortController } from '~/server/utils/abortControllers'
 
 const chatSchema = z.object({
   message: z.string().min(1),
@@ -30,8 +30,6 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
 }
-
-
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
@@ -102,35 +100,35 @@ export default defineEventHandler(async (event) => {
     // Check if client disconnected - but don't abort LLM generation
     let clientDisconnected = false
     
-    // More comprehensive disconnect detection - but we keep generating!
-    event.node.req.on('close', () => {
+    const handleReqClose = () => {
       if (!clientDisconnected) {
         clientDisconnected = true
         console.log('🔌 Client disconnected, but continuing generation...')
       }
-    })
-    
-    event.node.req.on('aborted', () => {
+    }
+    const handleReqAborted = () => {
       if (!clientDisconnected) {
         clientDisconnected = true
         console.log('🔌 Client connection aborted, but continuing generation...')
       }
-    })
-    
-    event.node.req.on('error', (err) => {
+    }
+    const handleReqError = (err: Error) => {
       if (!clientDisconnected) {
         clientDisconnected = true
         console.log('🔌 Client connection error, but continuing generation:', err.message)
       }
-    })
-    
-    // Also listen for response events
-    event.node.res.on('close', () => {
+    }
+    const handleResClose = () => {
       if (!clientDisconnected) {
         clientDisconnected = true
         console.log('🔌 Response closed, but continuing generation...')
       }
-    })
+    }
+
+    event.node.req.on('close', handleReqClose)
+    event.node.req.on('aborted', handleReqAborted)
+    event.node.req.on('error', handleReqError)
+    event.node.res.on('close', handleResClose)
     
     console.log('📡 Starting streaming response, connection status:', {
       destroyed: event.node.req.destroyed,
@@ -144,6 +142,7 @@ export default defineEventHandler(async (event) => {
       async start(controller) {
         let fullResponse = ''
         let assistantMessageId = ''
+        let userManuallyAborted = false
 
         // Check if client already disconnected via our event listeners
         if (clientDisconnected) {
@@ -184,293 +183,55 @@ export default defineEventHandler(async (event) => {
           // -----------------------------
           const abortController = new AbortController()
 
-          // ❶  If the browser closes the SSE ( user pressed STOP or refreshed )
-          //     Nitro fires both 'close' and 'aborted'. We tie those to the
-          //     same controller so the upstream LLM request is cancelled too.
-          event.node.req.on('close',   () => abortController.abort())
-          event.node.req.on('aborted', () => abortController.abort())
-          event.node.req.on('error',   () => abortController.abort())
-
-          // Also abort when the response stream itself is closed (e.g. UI Stop button)
-          event.node.res.on('close', () => abortController.abort())
-
           // Expose this controller so the frontend can cancel via
           // PUT /api/messages/:id/stop
           setAbortController(assistantMessageId, abortController)
 
-          if (model.startsWith('gpt-')) {
-            const openai = new OpenAI({
-              apiKey: config.openaiApiKey
-            })
-
-            // Log the request payload
-            const requestPayload = {
-              model,
-              messages: chatMessages,
-              stream: true
-            }
-            console.log('🚀 OpenAI API Request:', {
-              url: 'https://api.openai.com/v1/chat/completions',
-              method: 'POST',
-              model,
-              messageCount: chatMessages.length,
-              messages: chatMessages.map(msg => ({ role: msg.role, content: msg.content.slice(0, 100) + (msg.content.length > 100 ? '...' : '') })),
-            })
-
-            const startTime = Date.now()
-            console.log('⏱️ Starting OpenAI request at:', new Date().toISOString())
-
-            const stream = await openai.chat.completions.create({
-              ...requestPayload,
-              stream: true
-            }, {
-              signal: abortController.signal
-            })
-
-            const firstChunkTime = Date.now()
-            console.log('⚡ First chunk received after:', firstChunkTime - startTime, 'ms')
-
-            let chunkCount = 0
-            for await (const chunk of stream) {
-              chunkCount++
-              const content = chunk.choices[0]?.delta?.content || ''
-              
-              if (chunkCount === 1) {
-                console.log('📦 First chunk content:', JSON.stringify(chunk, null, 2))
-              }
-              
-              if (content) {
-                fullResponse += content
-                
-                // Update database in real-time with new content
-                await db.update(messages)
-                  .set({ content: fullResponse })
-                  .where(eq(messages.id, assistantMessageId))
-                
-                try {
-                  // Only send to client if still connected
-                  if (!clientDisconnected) {
-                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
-                  }
-                } catch (e) {
-                  // Stream might be closed if client disconnected
-                  if ((e as Error)?.message?.includes('closed')) {
-                    console.log('🔌 Client stream closed, but continuing generation in background')
-                    clientDisconnected = true
-                  } else {
-                    throw e
-                  }
-                }
-              }
-
-              // Log every 50th chunk to avoid spam
-              if (chunkCount % 50 === 0) {
-                console.log(`📊 Processed ${chunkCount} chunks, response length: ${fullResponse.length}`)
-              }
-            }
-
-            const endTime = Date.now()
-            console.log('✅ OpenAI request completed:', {
-              totalTime: endTime - startTime + 'ms',
-              timeToFirstChunk: firstChunkTime - startTime + 'ms',
-              totalChunks: chunkCount,
-              responseLength: fullResponse.length,
-              tokensEstimate: Math.ceil(fullResponse.length / 4) // rough estimate
-            })
-
-          } else if (model.startsWith('claude-')) {
-            const anthropic = new Anthropic({
-              apiKey: config.anthropicApiKey
-            })
-
-            // Set max_tokens based on model capabilities
-            let maxTokens = 2048 // Default for older models
-            if (model === 'claude-sonnet-4-20250514') {
-              maxTokens = 4096 // Claude Sonnet 4 can handle up to 64K, but we'll use 4K for reasonable response times
-            } else if (model === 'claude-opus-4-20250514') {
-              maxTokens = 4096 // Claude Opus 4 can handle up to 32K, but we'll use 4K for reasonable response times
-            }
-
-
-            const startTime = Date.now()
-            // console.log('⏱️ Starting Anthropic request at:', new Date().toISOString())
-
-            const stream = await anthropic.messages.create({
-              model,
-              max_tokens: maxTokens,
-              messages: chatMessages,
-              stream: true
-            }, {
-              signal: abortController.signal
-            })
-
-            const firstChunkTime = Date.now()
-            console.log('⚡ First chunk received after:', firstChunkTime - startTime, 'ms')
-
-            let chunkCount = 0
-            for await (const chunk of stream) {
-              chunkCount++
-              
-              if (chunkCount === 1) {
-                console.log('📦 First chunk content:', JSON.stringify(chunk, null, 2))
-              }
-
-              if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-                const content = chunk.delta.text
-                fullResponse += content
-                
-                // Update database in real-time with new content
-                await db.update(messages)
-                  .set({ content: fullResponse })
-                  .where(eq(messages.id, assistantMessageId))
-                
-                try {
-                  // Only send to client if still connected
-                  if (!clientDisconnected) {
-                    controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
-                  }
-                } catch (e) {
-                  // Stream might be closed if client disconnected
-                  if ((e as Error)?.message?.includes('closed')) {
-                    console.log('🔌 Client stream closed, but continuing Anthropic generation in background')
-                    clientDisconnected = true
-                  } else {
-                    throw e
-                  }
-                }
-              }
-
-              // Log every 50th chunk to avoid spam
-              // if (chunkCount % 50 === 0) {
-              //   console.log(`📊 Processed ${chunkCount} chunks, response length: ${fullResponse.length}`)
-              // }
-            }
-
-            const endTime = Date.now()
-            // console.log('✅ Anthropic request completed:', {
-            //   totalTime: endTime - startTime + 'ms',
-            //   timeToFirstChunk: firstChunkTime - startTime + 'ms',
-            //   totalChunks: chunkCount,
-            //   responseLength: fullResponse.length,
-            //   tokensEstimate: Math.ceil(fullResponse.length / 4) // rough estimate
-            // })
-          } else if (model.startsWith('gemini-')) {
-            const apiKey = config.geminiApiKey
-            if (!apiKey) {
-              throw new Error('Missing Gemini API key')
-            }
-
-            const googleMessages = chatMessages.map((msg) => ({
-              role: msg.role === 'user' ? 'user' : 'model',
-              parts: [{ text: msg.content }]
-            }))
-
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`;
-
-            // Shared abortController will cancel the fetch when requested
-            const response = await fetch(url, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              signal: abortController.signal,
-              body: JSON.stringify({
-                contents: googleMessages,
-                generationConfig: {
-                  maxOutputTokens: 2048,
-                  temperature: 0.9,
-                  topP: 0.95
-                }
+          try {
+            if (model.startsWith('gpt-')) {
+              const openai = new OpenAI({
+                apiKey: config.openaiApiKey
               })
-            })
 
-            if (!response.ok || !response.body) {
-              const errorText = await response.text()
-              console.error('❌ Gemini API Error:', response.status, response.statusText, errorText)
-              throw new Error(`Gemini API error: ${response.status} ${response.statusText}`)
-            }
-
-            const reader = response.body.getReader()
-            const decoder = new TextDecoder()
-            let buffer = ''
-
-            try {
-              while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-
-                buffer += decoder.decode(value, { stream: true })
-                let cleanBuffer = buffer.replace(/^\[/, '').replace(/\]$/, '')
-                
-                const possibleObjects = cleanBuffer.split(/,(?=\s*{)/)
-                
-                // Keep the last incomplete object in buffer
-                if (possibleObjects.length > 1) {
-                  buffer = possibleObjects.pop() || ''
-                  
-                  for (const objStr of possibleObjects) {
-                    const trimmedObj = objStr.trim()
-                    if (!trimmedObj) continue
-                    
-                    try {
-                      const data = JSON.parse(trimmedObj)
-                      
-                      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-                      if (text) {
-                        fullResponse += text
-                        
-                        // Update database in real-time with new content
-                        await db.update(messages)
-                          .set({ content: fullResponse })
-                          .where(eq(messages.id, assistantMessageId))
-                        
-                        try {
-                          // Only send to client if still connected
-                          if (!clientDisconnected) {
-                            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
-                          }
-                        } catch (e) {
-                          // Stream might be closed if client disconnected
-                          if ((e as Error)?.message?.includes('closed')) {
-                            console.log('🔌 Client stream closed, but continuing Gemini generation in background')
-                            clientDisconnected = true
-                          } else {
-                            throw e
-                          }
-                        }
-                      }
-                    } catch (e) {
-                      console.warn('⚠️ Failed to parse Gemini chunk:', trimmedObj.slice(0, 100), e)
-                    }
-                  }
-                }
+              // Log the request payload
+              const requestPayload = {
+                model,
+                messages: chatMessages,
+                stream: true
               }
-            } catch (error) {
-              if ((error as Error)?.name === 'AbortError') {
-                console.log('🛑 Gemini reader aborted successfully')
-              } else {
-                console.error('❌ Error reading Gemini stream:', error)
-                throw error
-              }
-            } finally {
-              // Ensure reader is properly closed
+              console.log('🚀 OpenAI API Request:', {
+                url: 'https://api.openai.com/v1/chat/completions',
+                method: 'POST',
+                model,
+                messageCount: chatMessages.length,
+                messages: chatMessages.map(msg => ({ role: msg.role, content: msg.content.slice(0, 100) + (msg.content.length > 100 ? '...' : '') })),
+              })
+
+              const startTime = Date.now()
+              console.log('⏱️ Starting OpenAI request at:', new Date().toISOString())
+
+              const stream = await openai.chat.completions.create({
+                ...requestPayload,
+                stream: true
+              }, {
+                signal: abortController.signal
+              })
+
+              const firstChunkTime = Date.now()
+              console.log('⚡ First chunk received after:', firstChunkTime - startTime, 'ms')
+
+              let chunkCount = 0
               try {
-                reader.releaseLock()
-              } catch (e) {
-                // Reader might already be closed
-              }
-            }
-
-            // Parse any remaining buffer content
-            if (buffer.trim()) {
-              const cleanBuffer = buffer.replace(/^\[/, '').replace(/\]$/, '').trim()
-              if (cleanBuffer) {
-                try {
-                  const data = JSON.parse(cleanBuffer)
+                for await (const chunk of stream) {
+                  chunkCount++
+                  const content = chunk.choices[0]?.delta?.content || ''
                   
-                  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-                  if (text) {
-                    fullResponse += text
+                  if (chunkCount === 1) {
+                    console.log('📦 First chunk content:', JSON.stringify(chunk, null, 2))
+                  }
+                  
+                  if (content) {
+                    fullResponse += content
                     
                     // Update database in real-time with new content
                     await db.update(messages)
@@ -480,96 +241,360 @@ export default defineEventHandler(async (event) => {
                     try {
                       // Only send to client if still connected
                       if (!clientDisconnected) {
-                        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
+                        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
                       }
                     } catch (e) {
                       // Stream might be closed if client disconnected
                       if ((e as Error)?.message?.includes('closed')) {
-                        console.log('🔌 Client stream closed during final Gemini processing')
+                        console.log('🔌 Client stream closed, but continuing generation in background')
                         clientDisconnected = true
                       } else {
                         throw e
                       }
                     }
                   }
+
+                  // Log every 50th chunk to avoid spam
+                  if (chunkCount % 50 === 0) {
+                    console.log(`📊 Processed ${chunkCount} chunks, response length: ${fullResponse.length}`)
+                  }
+                }
+              } catch (error) {
+                if (error instanceof Error && error.name === 'AbortError') {
+                  console.log('🛑 OpenAI stream aborted by user.')
+                  throw error // Re-throw to be caught by the main handler
+                }
+                // Log other stream errors
+                console.error('❌ OpenAI stream error:', error)
+                throw error
+              }
+
+              const endTime = Date.now()
+              console.log('✅ OpenAI request completed:', {
+                totalTime: endTime - startTime + 'ms',
+                timeToFirstChunk: firstChunkTime - startTime + 'ms',
+                totalChunks: chunkCount,
+                responseLength: fullResponse.length,
+                tokensEstimate: Math.ceil(fullResponse.length / 4) // rough estimate
+              })
+
+            } else if (model.startsWith('claude-')) {
+              const anthropic = new Anthropic({
+                apiKey: config.anthropicApiKey
+              })
+
+              // Set max_tokens based on model capabilities
+              let maxTokens = 2048 // Default for older models
+              if (model === 'claude-sonnet-4-20250514') {
+                maxTokens = 4096 // Claude Sonnet 4 can handle up to 64K, but we'll use 4K for reasonable response times
+              } else if (model === 'claude-opus-4-20250514') {
+                maxTokens = 4096 // Claude Opus 4 can handle up to 32K, but we'll use 4K for reasonable response times
+              }
+
+
+              const startTime = Date.now()
+              // console.log('⏱️ Starting Anthropic request at:', new Date().toISOString())
+
+              const stream = await anthropic.messages.create({
+                model,
+                max_tokens: maxTokens,
+                messages: chatMessages,
+                stream: true
+              }, {
+                signal: abortController.signal
+              })
+
+              const firstChunkTime = Date.now()
+              console.log('⚡ First chunk received after:', firstChunkTime - startTime, 'ms')
+
+              let chunkCount = 0
+              try {
+                for await (const chunk of stream) {
+                  chunkCount++
+                  
+                  if (chunkCount === 1) {
+                    console.log('📦 First chunk content:', JSON.stringify(chunk, null, 2))
+                  }
+
+                  if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+                    const content = chunk.delta.text
+                    fullResponse += content
+                    
+                    // Update database in real-time with new content
+                    await db.update(messages)
+                      .set({ content: fullResponse })
+                      .where(eq(messages.id, assistantMessageId))
+                    
+                    try {
+                      // Only send to client if still connected
+                      if (!clientDisconnected) {
+                        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+                      }
+                    } catch (e) {
+                      // Stream might be closed if client disconnected
+                      if ((e as Error)?.message?.includes('closed')) {
+                        console.log('🔌 Client stream closed, but continuing Anthropic generation in background')
+                        clientDisconnected = true
+                      } else {
+                        throw e
+                      }
+                    }
+                  }
+
+                  // Log every 50th chunk to avoid spam
+                  // if (chunkCount % 50 === 0) {
+                  //   console.log(`📊 Processed ${chunkCount} chunks, response length: ${fullResponse.length}`)
+                  // }
+                }
+              } catch (error) {
+                if (error instanceof Error && error.name === 'AbortError') {
+                  console.log('🛑 Anthropic stream aborted by user.')
+                  throw error // Re-throw to be caught by the main handler
+                }
+                // Log other stream errors
+                console.error('❌ Anthropic stream error:', error)
+                throw error
+              }
+
+              const endTime = Date.now()
+              // console.log('✅ Anthropic request completed:', {
+              //   totalTime: endTime - startTime + 'ms',
+              //   timeToFirstChunk: firstChunkTime - startTime + 'ms',
+              //   totalChunks: chunkCount,
+              //   responseLength: fullResponse.length,
+              //   tokensEstimate: Math.ceil(fullResponse.length / 4) // rough estimate
+              // })
+            } else if (model.startsWith('gemini-')) {
+              const apiKey = config.geminiApiKey
+              if (!apiKey) {
+                throw new Error('Missing Gemini API key')
+              }
+
+              const googleMessages = chatMessages.map((msg) => ({
+                role: msg.role === 'user' ? 'user' : 'model',
+                parts: [{ text: msg.content }]
+              }))
+
+              const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`;
+
+              // Shared abortController will cancel the fetch when requested
+              const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                signal: abortController.signal,
+                body: JSON.stringify({
+                  contents: googleMessages,
+                  generationConfig: {
+                    maxOutputTokens: 2048,
+                    temperature: 0.9,
+                    topP: 0.95
+                  }
+                })
+              })
+
+              if (!response.ok || !response.body) {
+                const errorText = await response.text()
+                console.error('❌ Gemini API Error:', response.status, response.statusText, errorText)
+                throw new Error(`Gemini API error: ${response.status} ${response.statusText}`)
+              }
+
+              const reader = response.body.getReader()
+              const decoder = new TextDecoder()
+              let buffer = ''
+
+              try {
+                while (true) {
+                  const { done, value } = await reader.read()
+                  if (done) break
+
+                  buffer += decoder.decode(value, { stream: true })
+                  let cleanBuffer = buffer.replace(/^\[/, '').replace(/\]$/, '')
+                  
+                  const possibleObjects = cleanBuffer.split(/,(?=\s*{)/)
+                  
+                  // Keep the last incomplete object in buffer
+                  if (possibleObjects.length > 1) {
+                    buffer = possibleObjects.pop() || ''
+                    
+                    for (const objStr of possibleObjects) {
+                      const trimmedObj = objStr.trim()
+                      if (!trimmedObj) continue
+                      
+                      try {
+                        const data = JSON.parse(trimmedObj)
+                        
+                        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+                        if (text) {
+                          fullResponse += text
+                          
+                          // Update database in real-time with new content
+                          await db.update(messages)
+                            .set({ content: fullResponse })
+                            .where(eq(messages.id, assistantMessageId))
+                          
+                          try {
+                            // Only send to client if still connected
+                            if (!clientDisconnected) {
+                              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
+                            }
+                          } catch (e) {
+                            // Stream might be closed if client disconnected
+                            if ((e as Error)?.message?.includes('closed')) {
+                              console.log('🔌 Client stream closed, but continuing Gemini generation in background')
+                              clientDisconnected = true
+                            } else {
+                              throw e
+                            }
+                          }
+                        }
+                      } catch (e) {
+                        console.warn('⚠️ Failed to parse Gemini chunk:', trimmedObj.slice(0, 100), e)
+                      }
+                    }
+                  }
+                }
+              } catch (error) {
+                if ((error as Error)?.name === 'AbortError') {
+                  console.log('🛑 Gemini reader aborted successfully')
+                  // Re-throw to be caught by the outer handler
+                  throw error
+                } else {
+                  console.error('❌ Error reading Gemini stream:', error)
+                  throw error
+                }
+              } finally {
+                // Ensure reader is properly closed
+                try {
+                  reader.releaseLock()
                 } catch (e) {
-                  console.warn('⚠️ Failed to parse final Gemini chunk:', cleanBuffer.slice(0, 100), e)
+                  // Reader might already be closed
                 }
               }
-            }
 
-          } else {
-            const groq = new Groq({
-              apiKey: config.groqApiKey
-            })
+              // Parse any remaining buffer content
+              if (buffer.trim()) {
+                const cleanBuffer = buffer.replace(/^\[/, '').replace(/\]$/, '').trim()
+                if (cleanBuffer) {
+                  try {
+                    const data = JSON.parse(cleanBuffer)
+                    
+                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+                    if (text) {
+                      fullResponse += text
+                      
+                      // Update database in real-time with new content
+                      await db.update(messages)
+                        .set({ content: fullResponse })
+                        .where(eq(messages.id, assistantMessageId))
+                      
+                      try {
+                        // Only send to client if still connected
+                        if (!clientDisconnected) {
+                          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
+                        }
+                      } catch (e) {
+                        // Stream might be closed if client disconnected
+                        if ((e as Error)?.message?.includes('closed')) {
+                          console.log('🔌 Client stream closed during final Gemini processing')
+                          clientDisconnected = true
+                        } else {
+                          throw e
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    console.warn('⚠️ Failed to parse final Gemini chunk:', cleanBuffer.slice(0, 100), e)
+                  }
+                }
+              }
 
-            // Check periodically if client disconnected – the same shared controller is used
-            const abortInterval = setInterval(() => {
-              if (clientDisconnected) {
-                console.log('🛑 Client disconnected, aborting Groq request')
-                abortController.abort()
+            } else {
+              const groq = new Groq({
+                apiKey: config.groqApiKey
+              })
+
+              // Check periodically if client disconnected – the same shared controller is used
+              const abortInterval = setInterval(() => {
+                if (clientDisconnected) {
+                  console.log('🛑 Client disconnected, aborting Groq request')
+                  abortController.abort()
+                  clearInterval(abortInterval)
+                }
+              }, 50)
+
+              const stream = await groq.chat.completions.create({
+                model,
+                messages: chatMessages,
+                stream: true
+              }, {
+                signal: abortController.signal
+              }).catch((error) => {
                 clearInterval(abortInterval)
-              }
-            }, 50)
+                if (error.name === 'AbortError') {
+                  console.log('🛑 Groq request aborted successfully')
+                  // Re-throw to be caught by the outer handler
+                  throw error
+                }
+                throw error
+              })
 
-            const stream = await groq.chat.completions.create({
-              model,
-              messages: chatMessages,
-              stream: true
-            }, {
-              signal: abortController.signal
-            }).catch((error) => {
               clearInterval(abortInterval)
-              if (error.name === 'AbortError') {
-                console.log('🛑 Groq request aborted successfully')
-                return null
-              }
-              throw error
-            })
-
-            clearInterval(abortInterval)
-            
-            if (!stream) {
-              console.log('🛑 Groq request was aborted, not processing')
-              return
-            }
-
-            for await (const chunk of stream) {
-              // Check if client aborted
-              if (clientDisconnected) {
-                console.log('🛑 Stopping Groq stream due to client abort')
-                break
-              }
-
-              const content = chunk.choices[0]?.delta?.content || ''
-              if (content) {
-                fullResponse += content
-                try {
-                  controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
-                } catch (e) {
-                  // Stream might be closed if client disconnected
-                  if ((e as Error)?.message?.includes('closed')) {
-                    console.log('🛑 Stream closed, stopping Groq processing')
+              
+              if (!stream) {
+                // This case happens if the above .catch threw an AbortError.
+                // The outer catch will handle it. We just need to stop processing here.
+                console.log('🛑 Groq request was aborted, not processing')
+              } else {
+                for await (const chunk of stream) {
+                  // Check if client aborted
+                  if (clientDisconnected && abortController.signal.aborted) {
+                    console.log('🛑 Stopping Groq stream due to user abort')
                     break
                   }
-                  throw e
+
+                  const content = chunk.choices[0]?.delta?.content || ''
+                  if (content) {
+                    fullResponse += content
+                    try {
+                      controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+                    } catch (e) {
+                      // Stream might be closed if client disconnected
+                      if ((e as Error)?.message?.includes('closed')) {
+                        console.log('🛑 Stream closed, stopping Groq processing')
+                        break
+                      }
+                      throw e
+                    }
+                  }
                 }
               }
+            }
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              console.log('🛑 Request was aborted by user action.')
+              userManuallyAborted = true
+            } else {
+              // Propagate other errors to the outer catch block
+              throw error
             }
           }
 
           // Save message if we have any content (even partial)
-          if (fullResponse.trim()) {
+          if (fullResponse.trim() || userManuallyAborted) {
             // Update the existing message with final content and status
             await db.update(messages)
               .set({ 
                 content: fullResponse,
-                status: clientDisconnected ? 'incomplete' : 'complete'
+                status: userManuallyAborted ? 'incomplete' : 'complete'
               })
               .where(eq(messages.id, assistantMessageId))
 
-            if (clientDisconnected) {
-              console.log('💾 Updated partial response in database:', fullResponse.length + ' characters')
+            if (userManuallyAborted) {
+              console.log('💾 Saved partial response to database after user abort: ' + fullResponse.length + ' characters')
+            } else if (clientDisconnected) {
+              console.log('💾 Background generation complete. Saved full response to database: ' + fullResponse.length + ' characters')
             } else {
               console.log('💾 Updated complete response in database')
               
@@ -597,11 +622,27 @@ export default defineEventHandler(async (event) => {
             messageCount: chatMessages.length,
             timestamp: new Date().toISOString()
           })
-          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
-            error: 'Failed to generate response' 
-          })}\n\n`))
+          // Only enqueue error if client is still connected
+          if (!clientDisconnected) {
+            try {
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
+                error: 'Failed to generate response' 
+              })}\n\n`))
+            } catch (e) {
+              console.log('🔌 Client stream closed, could not send error message.')
+            }
+          }
         } finally {
+          if (assistantMessageId) {
+            removeAbortController(assistantMessageId)
+          }
           controller.close()
+
+          // Clean up our event listeners
+          event.node.req.removeListener('close', handleReqClose)
+          event.node.req.removeListener('aborted', handleReqAborted)
+          event.node.req.removeListener('error', handleReqError)
+          event.node.res.removeListener('close', handleResClose)
         }
       }
     })

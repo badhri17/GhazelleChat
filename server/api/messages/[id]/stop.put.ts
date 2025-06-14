@@ -1,34 +1,37 @@
-import { db } from '~/server/db'
-import { messages } from '~/server/db/schema'
-import { eq } from 'drizzle-orm'
+import { z } from 'zod'
 import { abortMessage } from '~/server/utils/abortControllers'
+import { lucia } from '~/server/plugins/lucia'
 
 export default defineEventHandler(async (event) => {
-  try {
-    const messageId = getRouterParam(event, 'id')
-    
-    if (!messageId) {
-      throw createError({
-        statusCode: 400,
-        statusMessage: 'Message ID is required'
-      })
-    }
+  // 1. Authenticate the user
+  const sessionId = getCookie(event, lucia.sessionCookieName)
+  if (!sessionId) {
+    throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
+  }
+  const { session } = await lucia.validateSession(sessionId)
+  if (!session) {
+    throw createError({ statusCode: 401, statusMessage: 'Invalid session' })
+  }
 
-    // Abort the actual request!
-    const aborted = abortMessage(messageId)
-    console.log('🛑 Abort result for', messageId, ':', aborted)
+  // 2. Validate the message ID from the URL
+  const paramsSchema = z.object({
+    id: z.string().min(1)
+  })
 
-    // Update message status to incomplete
-    await db.update(messages)
-      .set({ status: 'incomplete' })
-      .where(eq(messages.id, messageId))
+  const params = await getValidatedRouterParams(event, paramsSchema.parse)
+  const messageId = params.id
 
-    return { success: true }
-  } catch (error) {
-    console.error('❌ Error stopping message:', error)
+  // 3. Attempt to abort the message generation
+  const aborted = abortMessage(messageId)
+
+  if (aborted) {
+    console.log('✅ Successfully aborted request for message:', messageId)
+    return { success: true, message: 'Generation stopped.' }
+  } else {
+    console.log('⚠️ Could not abort request for message (already completed or not found):', messageId)
     throw createError({
-      statusCode: 500,
-      statusMessage: 'Failed to stop message'
+      statusCode: 404,
+      statusMessage: 'Could not stop generation. It may have already completed.'
     })
   }
 }) 

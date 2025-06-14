@@ -16,4 +16,13 @@ export function abortMessage(messageId: string) {
   }
   console.log('❌ No abort controller found for:', messageId)
   return false
+}
+
+export function removeAbortController(messageId: string) {
+  if (abortControllers.has(messageId)) {
+    abortControllers.delete(messageId)
+    console.log('🧹 Cleaned up abort controller for:', messageId)
+    return true
+  }
+  return false
 } 
