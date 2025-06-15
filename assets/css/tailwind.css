@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -142,3 +143,4 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
+

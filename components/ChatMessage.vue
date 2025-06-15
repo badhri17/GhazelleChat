@@ -22,7 +22,7 @@
 
       <!-- Message Text -->
       <div
-        class="prose prose-stone dark:prose-invert max-w-none prose-p:my-0 prose-headings:my-0"
+        class="prose prose-sm dark:prose-invert max-w-none"
         :class="{ 'animate-pulse': isStreaming && !message.content }"
       >
         <div v-if="message.content" v-html="renderedContent" />
@@ -33,7 +33,7 @@
           </div>
         </template>
       </div>
-      <span v-if="isStreaming && message.content" class="animate-pulse inline-block ml-1">|</span>
+
 
       <!-- Timestamp -->
       <div :class="cn(

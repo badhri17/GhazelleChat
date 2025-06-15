@@ -62,6 +62,28 @@
   color: rgb(248, 113, 113) !important;
 }
 
+/* Custom Scrollbar for Code Blocks */
+.prose code::-webkit-scrollbar {
+  width: 18px;
+  height: 9px;
+}
+
+.prose code::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* The draggable scroll thumb */
+.prose code::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+.prose code::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
 
 
 
+.dark :where(ul > li):not(:where([class~="not-prose"],[class~="not-prose"] *))::marker{
+    color: white;
+}

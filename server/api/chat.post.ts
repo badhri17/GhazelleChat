@@ -269,6 +269,12 @@ export default defineEventHandler(async (event) => {
                 throw error
               }
 
+              // After the loop, check if the abort was signaled. The OpenAI SDK
+              // might not throw, so we ensure we catch it here.
+              if (abortController.signal.aborted) {
+                throw new Error('Stream aborted by user action.')
+              }
+
               const endTime = Date.now()
               console.log('✅ OpenAI request completed:', {
                 totalTime: endTime - startTime + 'ms',
@@ -354,6 +360,11 @@ export default defineEventHandler(async (event) => {
                 // Log other stream errors
                 console.error('❌ Anthropic stream error:', error)
                 throw error
+              }
+
+              // After the loop, check if the abort was signaled.
+              if (abortController.signal.aborted) {
+                throw new Error('Stream aborted by user action.')
               }
 
               const endTime = Date.now()
@@ -572,7 +583,7 @@ export default defineEventHandler(async (event) => {
               }
             }
           } catch (error) {
-            if (error instanceof Error && error.name === 'AbortError') {
+            if ((error instanceof Error && error.message.includes('aborted')) || (error instanceof Error && error.name === 'AbortError')) {
               console.log('🛑 Request was aborted by user action.')
               userManuallyAborted = true
             } else {

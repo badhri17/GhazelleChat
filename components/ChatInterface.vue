@@ -18,11 +18,12 @@
           :key="message.id"
           :message="message"
           :conversation-id="props.conversationId || undefined"
+          :is-streaming="message.status === 'streaming'"
         />
 
         <!-- Loading Message -->
-        <div  class="flex gap-3">
-          <div v-if="isLoading && !streamingMessage" class="max-w-[80%]  p-3 backdrop-blur-xl border-none bg-background/20 rounded-lg mb-16">
+        <div class="flex gap-3">
+          <div v-if="isLoading" class="max-w-[80%] p-3 backdrop-blur-xl border-none bg-background/20 rounded-lg mb-16">
             <div class="text-xs text-muted-foreground mb-2 font-mono">
               {{ selectedModel }}
             </div>
@@ -32,14 +33,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Streaming Message -->
-        <ChatMessage
-          v-if="streamingMessage"
-          :message="streamingMessage"
-          :conversation-id="props.conversationId || undefined"
-          :is-streaming="true"
-        />
       </div>
     </ScrollArea>
   </div>
@@ -82,12 +75,53 @@ const selectedModel = computed({
 })
 const inputMessage = ref('')
 const messages = ref<Message[]>([])
-const streamingMessage = ref<Message | null>(null)
 const isLoading = ref(false)
 const isStreaming = ref(false)
 const textareaRef = ref()
+const textQueue = ref<string[]>([])
+const isProcessingQueue = ref(false)
 
 const pollingInterval = ref<NodeJS.Timeout | null>(null)
+
+// Renders text from a queue word-by-word for a smooth typing effect
+function processQueue(assistantMessageId: string) {
+  if (textQueue.value.length === 0) {
+    // If the main data stream is done, we are finished. Mark as complete.
+    if (!isStreaming.value) {
+      isProcessingQueue.value = false
+      const msgIndex = messages.value.findIndex(m => m.id === assistantMessageId)
+      if (msgIndex !== -1 && messages.value[msgIndex].status === 'streaming') {
+        messages.value[msgIndex].status = 'complete'
+      }
+      return
+    }
+    // Otherwise, wait a moment for more text to arrive in the queue
+    setTimeout(() => processQueue(assistantMessageId), 50)
+    return
+  }
+
+  isProcessingQueue.value = true
+  // Match words, newlines, or punctuation followed by spaces. This gives a better "typing" feel.
+  const words = (textQueue.value.shift()!.match(/\S+\s*|\n/g) || [])
+
+  let i = 0
+  const renderNextWord = () => {
+    if (i < words.length) {
+      const msgIndex = messages.value.findIndex(m => m.id === assistantMessageId)
+      if (msgIndex !== -1) {
+        messages.value[msgIndex].content += words[i]
+        // Scroll to bottom as new words are rendered
+        nextTick(() => scrollToBottom())
+      }
+      i++
+      setTimeout(renderNextWord, 25) // Adjust for typing speed
+    } else {
+      // Finished rendering words in this chunk, process the next chunk from the queue
+      nextTick(() => processQueue(assistantMessageId))
+    }
+  }
+  renderNextWord()
+}
 
 // Watch for conversation changes
 watch(() => props.conversationId, async (newId) => {
@@ -210,34 +244,30 @@ function addNewLine() {
 function stopStreaming() {
   console.log('🛑 Stopping stream manually')
 
-  // Clean up states
   isLoading.value = false
   isStreaming.value = false
 
-  // If there's a partial streaming message, call the stop endpoint
-  if (streamingMessage.value && streamingMessage.value.id) {
-    const messageToStopId = streamingMessage.value.id
-    console.log('🚀 Sending stop request for message ID:', messageToStopId)
+  // Find the message that is currently streaming and stop it.
+  const streamingMsg = messages.value.find(m => m.status === 'streaming')
+  if (streamingMsg && streamingMsg.id) {
+    console.log('🚀 Sending stop request for message ID:', streamingMsg.id)
     
-    fetch(`/api/messages/${messageToStopId}/stop`, {
+    fetch(`/api/messages/${streamingMsg.id}/stop`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' }
     }).then(res => {
-      if (res.ok) console.log('✅ Stop request successful for', messageToStopId)
-      else console.error('❌ Stop request failed for', messageToStopId)
+      if (res.ok) {
+        console.log('✅ Stop request successful for', streamingMsg.id)
+        // Update status locally for immediate feedback
+        const msgIndex = messages.value.findIndex(m => m.id === streamingMsg.id)
+        if (msgIndex !== -1) {
+          messages.value[msgIndex].status = 'incomplete'
+        }
+      } else {
+        console.error('❌ Stop request failed for', streamingMsg.id)
+      }
     }).catch(err => console.error('Failed to send stop signal:', err))
-    
-    // If there's partial content, add the message to the list as incomplete
-    if (streamingMessage.value.content.trim()) {
-      console.log('💾 Preserving partial message:', streamingMessage.value.content.length + ' characters')
-      messages.value.push({
-        ...streamingMessage.value,
-        status: 'incomplete'
-      })
-    }
   }
-
-  streamingMessage.value = null
 }
 
 async function sendMessage() {
@@ -245,6 +275,7 @@ async function sendMessage() {
 
   isLoading.value = true
   isStreaming.value = true
+  textQueue.value = [] // Clear queue for new message
 
   const userMessage: Message = {
     id: Date.now().toString(), // Temporary ID
@@ -253,6 +284,10 @@ async function sendMessage() {
     createdAt: new Date()
   }
   messages.value.push(userMessage)
+  
+  nextTick(() => {
+    scrollToBottom('smooth')
+  })
   
   const currentConversationId = props.conversationId
   
@@ -276,13 +311,14 @@ async function sendMessage() {
     
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
+    let assistantMessageId = ''
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) {
-        if (streamingMessage.value && streamingMessage.value.content) {
-          messages.value.push({ ...streamingMessage.value, status: 'complete' })
-        }
+        // Signal that the stream from the server is over.
+        // The queue processor will finish rendering and then mark the message as complete.
+        isStreaming.value = false
         break
       }
       
@@ -298,66 +334,67 @@ async function sendMessage() {
           if (data.error) {
             throw new Error(data.error)
           }
-          
-          // First chunk of data, create the streaming message object
-          if (streamingMessage.value === null && (data.messageId || data.content)) {
+
+          // First chunk with messageId: create the message object
+          if (data.messageId && !assistantMessageId) {
+            assistantMessageId = data.messageId
             isLoading.value = false // We're now streaming, not just thinking
-            streamingMessage.value = {
-              id: data.messageId || '',
+            
+            messages.value.push({
+              id: assistantMessageId,
               role: 'assistant',
-              content: data.content || '',
+              content: '',
               model: selectedModel.value,
-              createdAt: new Date()
+              createdAt: new Date(),
+              status: 'streaming'
+            })
+
+            // Start the renderer if it's not already running
+            if (!isProcessingQueue.value) {
+              processQueue(assistantMessageId)
             }
+            
+            // If the first chunk also has content, queue it for rendering
+            if (data.content) {
+              textQueue.value.push(data.content)
+            }
+          } else if (data.content) {
+            textQueue.value.push(data.content)
+          }
+          
+          if (data.conversationId && !props.conversationId) {
+            emit('conversationCreated', data.conversationId)
           }
 
-          if (streamingMessage.value) {
-            // The very first chunk might only have the ID, content comes next
-            if (data.messageId && streamingMessage.value.id === '') {
-              streamingMessage.value.id = data.messageId
-            }
-            
-            // If the first chunk had content, this will append subsequent content
-            if (data.content && streamingMessage.value.content !== data.content) {
-              streamingMessage.value.content += data.content
-            }
-            
-            if (data.conversationId && !props.conversationId) {
-              emit('conversationCreated', data.conversationId)
-            }
-
-            if (data.done) {
-              isStreaming.value = false
-            }
+          if (data.done) {
+            isStreaming.value = false
           }
         } catch (e) {
           console.error('Failed to parse stream chunk:', jsonStr, e)
         }
       }
-      
-      // Auto-scroll on new content
-      nextTick(() => {
-        scrollToBottom()
-      })
     }
   } catch (error) {
     console.error('Chat error:', error)
-    if (streamingMessage.value) {
-      streamingMessage.value.content += `\n\n**Error:** ${error instanceof Error ? error.message : 'An unknown error occurred.'}`
-      streamingMessage.value.status = 'incomplete'
-      messages.value.push(streamingMessage.value)
+    const streamingMsg = messages.value.find(m => m.status === 'streaming')
+    if (streamingMsg) {
+      const msgIndex = messages.value.findIndex(m => m.id === streamingMsg.id)
+      if (msgIndex !== -1) {
+        messages.value[msgIndex].content += `\n\n**Error:** ${error instanceof Error ? error.message : 'An unknown error occurred.'}`
+        messages.value[msgIndex].status = 'incomplete'
+      }
     }
   } finally {
     isLoading.value = false
-    isStreaming.value = false
-    streamingMessage.value = null
+    // isStreaming is set to false when `done:true` or the stream ends.
+    // This signals the queue processor to terminate after emptying the queue.
   }
 }
 
 function scrollToBottom(behavior: 'smooth' | 'auto' = 'smooth') {
   const scrollArea = document.querySelector('div[data-slot="scroll-area"]')
   if (scrollArea) {
-    window.scrollTo({
+      window.scrollTo({
       top: scrollArea.scrollHeight,
       behavior: behavior
     })

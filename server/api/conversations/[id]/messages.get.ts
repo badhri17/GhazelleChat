@@ -29,7 +29,14 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const conversationMessages = await db.select().from(messages)
+  const conversationMessages = await db.select({
+    id: messages.id,
+    role: messages.role,
+    content: messages.content,
+    model: messages.model,
+    status: messages.status,
+    createdAt: messages.createdAt
+  }).from(messages)
     .where(eq(messages.conversationId, conversationId))
     .orderBy(asc(messages.createdAt))
 
