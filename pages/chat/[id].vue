@@ -11,18 +11,10 @@
       <!-- Main Chat Area -->
       <SidebarInset>
         <!-- Sticky Header -->
-        <header class="sticky top-0 z-40 border-b px-4 py-3 flex justify-between items-center  backdrop-blur-sm  border-none">
-          <div class="flex items-center gap-2">
-            <SidebarTrigger />
-            <h2 class="font-semibold mr-2 text-base">
-              {{ conversation?.title || 'Chat' }}
-            </h2>
-            <ModelSelector v-model="selectedModel" />
-          </div>
-          <div class="flex items-center gap-4">
-            <ThemeToggle />
-          </div>
-        </header>
+        <ChatHeader 
+          :title="conversation?.title || 'Chat'"
+          v-model:selected-model="selectedModel"
+        />
 
         <!-- Content -->
         <div class="flex flex-col h-full">
@@ -57,6 +49,7 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar'
 import ModelSelector from '@/components/ModelSelector.vue'
+import ChatHeader from '@/components/ChatHeader.vue'
 
 interface User {
   id: string

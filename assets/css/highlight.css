@@ -94,7 +94,6 @@
 
 /* Dark mode styles */
 .dark .hljs {
-  background: #2c2c2c8c;
   color: hsl(var(--muted-foreground));
 }
 
