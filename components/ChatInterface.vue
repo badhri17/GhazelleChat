@@ -83,92 +83,7 @@ const textareaRef = ref()
 
 const pollingInterval = ref<NodeJS.Timeout | null>(null)
 
-// Watch for conversation changes
-watch(() => props.conversationId, async (newId) => {
-  if (newId) {
-    await loadMessages(newId)
-    // Check for streaming messages and start polling
-    startPollingForStreaming()
-  } else {
-    messages.value = []
-    stopPolling()
-  }
-}, { immediate: true })
-
-function startPollingForStreaming() {
-  // Stop any existing polling
-  stopPolling()
-  
-  // Check if we have any streaming messages
-  const streamingMessages = messages.value.filter(msg => msg.status === 'streaming')
-  
-  if (streamingMessages.length > 0) {
-    console.log('📡 Found streaming messages, starting to poll for updates')
-    
-    pollingInterval.value = setInterval(async () => {
-      await pollStreamingMessages()
-    }, 1000) // Poll every second
-  }
-}
-
-function stopPolling() {
-  if (pollingInterval.value) {
-    clearInterval(pollingInterval.value)
-    pollingInterval.value = null
-  }
-}
-
-async function pollStreamingMessages() {
-  const streamingMessages = messages.value.filter(msg => msg.status === 'streaming')
-  
-  if (streamingMessages.length === 0) {
-    stopPolling()
-    return
-  }
-  
-  for (const message of streamingMessages) {
-    try {
-      const response = await fetch(`/api/messages/${message.id}/content`)
-      if (response.ok) {
-        const data = await response.json()
-        
-        // Update message content if it changed
-        if (data.content !== message.content) {
-          const messageIndex = messages.value.findIndex(m => m.id === message.id)
-          if (messageIndex !== -1) {
-            messages.value[messageIndex] = {
-              ...messages.value[messageIndex],
-              content: data.content,
-              status: data.status
-            }
-          }
-        }
-        
-        // If message is complete, stop polling for it
-        if (data.status === 'complete') {
-          console.log('✅ Message completed:', message.id)
-        }
-      }
-    } catch (error) {
-      console.error('Error polling message:', message.id, error)
-    }
-  }
-  
-  // Check if all messages are complete
-  const stillStreaming = messages.value.some(msg => msg.status === 'streaming')
-  if (!stillStreaming) {
-    stopPolling()
-    console.log('🏁 All messages completed, stopping poll')
-  }
-}
-
-// Clean up polling on unmount
-onUnmounted(() => {
-  stopPolling()
-})
-
 async function loadMessages(conversationId: string) {
-  //scrollToBottom('auto')
   try {
     const { messages: data } = await $fetch(`/api/conversations/${conversationId}/messages`)
     messages.value = data.map((msg: any) => ({
@@ -188,8 +103,13 @@ async function loadMessages(conversationId: string) {
     nextTick(() => {
       scrollToBottom('auto')
     })
-  } catch (error) {
-    console.error('Failed to load messages:', error)
+  } catch (error: any) {
+    if (error?.status === 401) {
+      console.warn('🔑 Session expired while loading messages. Redirecting to login.')
+      navigateTo('/login')
+    } else {
+      console.error('Failed to load messages:', error)
+    }
   }
 }
 
@@ -249,7 +169,7 @@ async function sendMessage(message: string, attachments: any[] = []) {
   const currentConversationId = props.conversationId
   
   const prompt = message
-  inputMessage.value = '' // Clear input
+  inputMessage.value = '' 
   
   try {
     const response = await fetch('/api/chat', {
@@ -280,7 +200,6 @@ async function sendMessage(message: string, attachments: any[] = []) {
       }
       
       const chunk = decoder.decode(value, { stream: true })
-      // SSE sends data in `data: { ... }` format, often with multiple lines
       const lines = chunk.split('\n').filter(line => line.trim().startsWith('data:'))
 
       for (const line of lines) {
@@ -292,10 +211,9 @@ async function sendMessage(message: string, attachments: any[] = []) {
             throw new Error(data.error)
           }
 
-          // First chunk with messageId: create the message object
           if (data.messageId && !assistantMessageId) {
             assistantMessageId = data.messageId
-            isLoading.value = false // We're now streaming, not just thinking
+            isLoading.value = false 
             
             messages.value.push({
               id: assistantMessageId,
@@ -368,8 +286,6 @@ onMounted(() => {
   
 })
 
-
-// Expose methods for parent component
 defineExpose({
   sendMessage,
   addNewLine,
@@ -388,4 +304,62 @@ defineExpose({
   textareaRef,
   selectedModel
 })
+
+if (process.client) {
+  const pollingInterval = ref<NodeJS.Timeout | null>(null)
+  
+  watch(
+    () => props.conversationId,
+    async (newId) => {
+      if (newId) {
+        await loadMessages(newId)
+        startPollingForStreaming()
+      } else {
+        messages.value = []
+        stopPolling()
+      }
+    },
+    { immediate: true }
+  )
+
+  function startPollingForStreaming() {
+    stopPolling()
+    if (messages.value.some((m) => m.status === 'streaming')) {
+      pollingInterval.value = setInterval(pollStreamingMessages, 1000)
+    }
+  }
+
+  function stopPolling() {
+    if (pollingInterval.value) {
+      clearInterval(pollingInterval.value)
+      pollingInterval.value = null
+    }
+  }
+
+  async function pollStreamingMessages() {
+    const streaming = messages.value.filter((m) => m.status === 'streaming')
+    if (streaming.length === 0) {
+      stopPolling()
+      return
+    }
+
+    for (const msg of streaming) {
+      try {
+        const data = await $fetch(`/api/messages/${msg.id}/content`)
+        if (data.content !== msg.content) {
+          const idx = messages.value.findIndex((m) => m.id === msg.id)
+          if (idx !== -1) messages.value[idx] = { ...messages.value[idx], content: data.content, status: data.status as string }
+        }
+      } catch (err) {
+        console.error('Polling error', err)
+      }
+    }
+
+    if (!messages.value.some((m) => m.status === 'streaming')) {
+      stopPolling()
+    }
+  }
+
+  onUnmounted(stopPolling)
+}
 </script> 
