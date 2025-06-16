@@ -33,6 +33,7 @@
       <!-- Chat Input -->
       <ChatInput 
         v-model="inputMessage"
+        :current-model="selectedModel"
         :is-loading="isLoading"
         :is-streaming="isStreaming"
         @send-message="handleSendMessage"
@@ -128,12 +129,10 @@ function handleAddNewLine() {
   inputMessage.value += '\n'
 }
 
-function handleSendMessage(message: string) {
-  console.log('📨 Page handleSendMessage called with:', message)
-  if (chatInterfaceRef.value && message.trim()) {
-    // Set the input message in the chat interface and trigger send
-    chatInterfaceRef.value.inputMessage = message
-    chatInterfaceRef.value.sendMessage()
+function handleSendMessage(message: string, attachments: any[] = []) {
+  console.log('📨 Page handleSendMessage called with:', message, attachments)
+  if (chatInterfaceRef.value && (message.trim() || attachments.length)) {
+    chatInterfaceRef.value.sendMessage(message, attachments)
     inputMessage.value = ''
   }
 }

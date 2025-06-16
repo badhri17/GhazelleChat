@@ -5,6 +5,17 @@
         
       <form @submit.prevent="handleSendMessage" class="relative">
         <div class="flex items-end gap-4 p-4 bg-background/50 backdrop-blur-xl border border-none rounded-2xl ">
+          <!-- Attachment button -->
+          <Button
+            type="button"
+            size="icon"
+            @click="triggerFileDialog"
+            class="h-9 w-9 rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-colors flex-shrink-0"
+          >
+            <Icon name="lucide:paperclip" class="w-5 h-5" />
+          </Button>
+          <input ref="fileInputRef" type="file" class="hidden" multiple accept="image/*,application/pdf" @change="handleFileChange" />
+
           <Textarea
             ref="textareaRef"
             v-model="inputMessage"
@@ -14,14 +25,15 @@
             @keydown.enter.exact.prevent="handleSendMessage"
             @keydown.enter.shift.exact.prevent="handleAddNewLine"
           />
-          <Button 
-            type="submit" 
-            :disabled="!inputMessage.trim() && !isStreaming && !isLoading"
+
+          <Button
+            type="submit"
+            :disabled="(!inputMessage.trim() && attachments.length === 0) && !isStreaming && !isLoading"
             size="icon"
             :class="[
               'h-9 w-9 text-primary-foreground rounded-xl transition-all duration-300 flex-shrink-0 relative cursor-pointer',
-              (!inputMessage.trim() && !isStreaming && !isLoading)
-                ? 'bg-muted text-muted-foreground cursor-not-allowed' 
+              (!inputMessage.trim() && attachments.length === 0 && !isStreaming && !isLoading)
+                ? 'bg-muted text-muted-foreground cursor-not-allowed'
                 : 'bg-primary hover:bg-primary/90 glow-button'
             ]"
           >
@@ -31,27 +43,48 @@
           </Button>
         </div>
       </form>
+      <!-- Preview attachments -->
+      <div v-if="attachments.length" class="flex gap-2 mt-2 flex-wrap">
+        <div v-for="file in attachments" :key="file.id" class="px-3 py-1 text-sm bg-muted rounded-full flex items-center gap-2">
+          <Icon :name="file.mimeType.startsWith('image/') ? 'lucide:image' : 'lucide:file-text'" class="w-4 h-4" />
+          <span>{{ file.fileName }}</span>
+          <button type="button" @click="attachments = attachments.filter(a => a.id !== file.id)" class="text-muted-foreground hover:text-foreground">
+            <Icon name="lucide:x" class="w-3 h-3" />
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useSidebar } from '@/components/ui/sidebar'
+import { toast } from 'vue-sonner'
+import { validateAttachment } from '@/lib/attachmentRules'
+
+interface UploadedAttachment {
+  id: string
+  url: string
+  fileName: string
+  mimeType: string
+  size: number
+}
 
 interface Props {
-  modelValue: string
+  modelValue: string // v-model for the input text
+  currentModel: string // selected LLM model
   isLoading?: boolean
   isStreaming?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
-  isStreaming: false
+  isStreaming: false,
 })
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
-  'send-message': [message: string]
+  'send-message': [message: string, attachments: UploadedAttachment[]]
   'stop-streaming': []
 }>()
 
@@ -66,8 +99,52 @@ const inputMessage = computed({
   set: (value) => emit('update:modelValue', value)
 })
 
+const attachments = ref<UploadedAttachment[]>([])
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
 function handleAddNewLine() {
   inputMessage.value += '\n'
+}
+
+function triggerFileDialog() {
+  fileInputRef.value?.click()
+}
+
+async function handleFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (!input.files) return
+  const files = Array.from(input.files)
+
+  const model = props.currentModel
+
+  for (const file of files) {
+    const validationErr = validateAttachment(model, { mimeType: file.type, size: file.size })
+    if (validationErr) {
+      toast.error(validationErr)
+      continue
+    }
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('model', model)
+
+    try {
+      const res = await fetch('/api/attachments', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text)
+      }
+      const data = await res.json()
+      attachments.value.push(data)
+    } catch (e) {
+      toast.error(`Upload failed: ${(e as Error).message}`)
+    }
+  }
+  // Reset input so selecting same file again triggers change
+  input.value = ''
 }
 
 function handleSendMessage() {
@@ -81,9 +158,13 @@ function handleSendMessage() {
     console.log('🛑 Emitting stop-streaming event')
     // If streaming, emit stop event instead
     emit('stop-streaming')
-  } else if (inputMessage.value.trim() && !props.isLoading) {
+  } else if ((inputMessage.value.trim() || attachments.value.length) && !props.isLoading) {
     console.log('📤 Emitting send-message event')
-    emit('send-message', inputMessage.value.trim())
+    const messageText = inputMessage.value.trim()
+    emit('send-message', messageText, attachments.value)
+    // clear locals
+    inputMessage.value = ''
+    attachments.value = []
   }
 }
 

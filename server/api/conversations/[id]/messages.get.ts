@@ -1,7 +1,12 @@
 import { eq, asc } from 'drizzle-orm'
 import { db } from '~/server/db'
-import { messages } from '~/server/db/schema'
+import { messages, attachments } from '~/server/db/schema'
 import { lucia } from '~/server/plugins/lucia'
+import type { Message, Attachment } from '~/server/db/schema'
+
+interface MessageWithAttachments extends Message {
+  attachments: Attachment[]
+}
 
 export default defineEventHandler(async (event) => {
   // Verify authentication
@@ -29,18 +34,35 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const conversationMessages = await db.select({
-    id: messages.id,
-    role: messages.role,
-    content: messages.content,
-    model: messages.model,
-    status: messages.status,
-    createdAt: messages.createdAt
-  }).from(messages)
+  const results = await db
+    .select({
+      message: messages,
+      attachment: attachments,
+    })
+    .from(messages)
+    .leftJoin(attachments, eq(messages.id, attachments.messageId))
     .where(eq(messages.conversationId, conversationId))
     .orderBy(asc(messages.createdAt))
 
+  const messageMap = new Map<string, MessageWithAttachments>()
+
+  for (const row of results) {
+    const { message, attachment } = row
+    if (!messageMap.has(message.id)) {
+      messageMap.set(message.id, {
+        ...message,
+        attachments: [],
+      })
+    }
+
+    if (attachment) {
+      messageMap.get(message.id)!.attachments.push(attachment)
+    }
+  }
+
+  const conversationMessages = Array.from(messageMap.values())
+
   return {
-    messages: conversationMessages
+    messages: conversationMessages,
   }
 }) 

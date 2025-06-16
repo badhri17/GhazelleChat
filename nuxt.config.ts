@@ -17,12 +17,25 @@ export default defineNuxtConfig({
     authSecret: process.env.AUTH_SECRET,
   },
   vite: {
+    server: {
+      hmr: {
+        host: "localhost",
+      },
+      allowedHosts: [
+        ".ngrok-free.app",
+        "localhost",
+      ],
+    },
     plugins: [
       // @ts-ignore
       tailwindcss(),
     ],
   },
-  css: ["~/assets/css/tailwind.css", "~/assets/css/highlight.css", "~/assets/css/general.css"],
+  css: [
+    "~/assets/css/tailwind.css",
+    "~/assets/css/highlight.css",
+    "~/assets/css/general.css",
+  ],
   shadcn: {
     /**
      * Prefix for all the imported component

@@ -19,6 +19,7 @@
           :message="message"
           :conversation-id="props.conversationId || undefined"
           :is-streaming="message.status === 'streaming'"
+          @image-loaded="scrollToBottom('smooth')"
         />
 
         <!-- Loading Message -->
@@ -49,9 +50,10 @@ interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  createdAt: Date
   model?: string
   status?: string
-  createdAt: Date
+  attachments?: any[]
 }
 
 interface Props {
@@ -78,50 +80,8 @@ const messages = ref<Message[]>([])
 const isLoading = ref(false)
 const isStreaming = ref(false)
 const textareaRef = ref()
-const textQueue = ref<string[]>([])
-const isProcessingQueue = ref(false)
 
 const pollingInterval = ref<NodeJS.Timeout | null>(null)
-
-// Renders text from a queue word-by-word for a smooth typing effect
-function processQueue(assistantMessageId: string) {
-  if (textQueue.value.length === 0) {
-    // If the main data stream is done, we are finished. Mark as complete.
-    if (!isStreaming.value) {
-      isProcessingQueue.value = false
-      const msgIndex = messages.value.findIndex(m => m.id === assistantMessageId)
-      if (msgIndex !== -1 && messages.value[msgIndex].status === 'streaming') {
-        messages.value[msgIndex].status = 'complete'
-      }
-      return
-    }
-    // Otherwise, wait a moment for more text to arrive in the queue
-    setTimeout(() => processQueue(assistantMessageId), 50)
-    return
-  }
-
-  isProcessingQueue.value = true
-  // Match words, newlines, or punctuation followed by spaces. This gives a better "typing" feel.
-  const words = (textQueue.value.shift()!.match(/\S+\s*|\n/g) || [])
-
-  let i = 0
-  const renderNextWord = () => {
-    if (i < words.length) {
-      const msgIndex = messages.value.findIndex(m => m.id === assistantMessageId)
-      if (msgIndex !== -1) {
-        messages.value[msgIndex].content += words[i]
-        // Scroll to bottom as new words are rendered
-        nextTick(() => scrollToBottom())
-      }
-      i++
-      setTimeout(renderNextWord, 25) // Adjust for typing speed
-    } else {
-      // Finished rendering words in this chunk, process the next chunk from the queue
-      nextTick(() => processQueue(assistantMessageId))
-    }
-  }
-  renderNextWord()
-}
 
 // Watch for conversation changes
 watch(() => props.conversationId, async (newId) => {
@@ -181,11 +141,6 @@ async function pollStreamingMessages() {
               content: data.content,
               status: data.status
             }
-            
-            // Scroll to bottom when content updates
-            nextTick(() => {
-              scrollToBottom()
-            })
           }
         }
         
@@ -213,6 +168,7 @@ onUnmounted(() => {
 })
 
 async function loadMessages(conversationId: string) {
+  //scrollToBottom('auto')
   try {
     const { messages: data } = await $fetch(`/api/conversations/${conversationId}/messages`)
     messages.value = data.map((msg: any) => ({
@@ -270,18 +226,19 @@ function stopStreaming() {
   }
 }
 
-async function sendMessage() {
-  if (inputMessage.value.trim() === '') return
+async function sendMessage(message: string, attachments: any[] = []) {
+  if (message.trim() === '' && attachments.length === 0) return
 
   isLoading.value = true
   isStreaming.value = true
-  textQueue.value = [] // Clear queue for new message
+  let assistantMessageId = ''
 
   const userMessage: Message = {
     id: Date.now().toString(), // Temporary ID
     role: 'user',
-    content: inputMessage.value,
-    createdAt: new Date()
+    content: message,
+    createdAt: new Date(),
+    attachments,
   }
   messages.value.push(userMessage)
   
@@ -291,7 +248,7 @@ async function sendMessage() {
   
   const currentConversationId = props.conversationId
   
-  const prompt = inputMessage.value
+  const prompt = message
   inputMessage.value = '' // Clear input
   
   try {
@@ -301,7 +258,8 @@ async function sendMessage() {
       body: JSON.stringify({
         message: prompt,
         conversationId: currentConversationId,
-        model: selectedModel.value
+        model: selectedModel.value,
+        attachments,
       })
     })
 
@@ -311,14 +269,13 @@ async function sendMessage() {
     
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
-    let assistantMessageId = ''
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) {
-        // Signal that the stream from the server is over.
-        // The queue processor will finish rendering and then mark the message as complete.
         isStreaming.value = false
+        const idxMsg = messages.value.findIndex(m => m.id === assistantMessageId)
+        if (idxMsg !== -1) messages.value[idxMsg].status = 'complete'
         break
       }
       
@@ -348,18 +305,12 @@ async function sendMessage() {
               createdAt: new Date(),
               status: 'streaming'
             })
-
-            // Start the renderer if it's not already running
-            if (!isProcessingQueue.value) {
-              processQueue(assistantMessageId)
-            }
-            
-            // If the first chunk also has content, queue it for rendering
-            if (data.content) {
-              textQueue.value.push(data.content)
-            }
           } else if (data.content) {
-            textQueue.value.push(data.content)
+            const msgIdx = messages.value.findIndex(m => m.id === assistantMessageId)
+            if (msgIdx !== -1) {
+              messages.value[msgIdx].content += data.content
+              nextTick(scrollToBottom)
+            }
           }
           
           if (data.conversationId && !props.conversationId) {
@@ -368,6 +319,8 @@ async function sendMessage() {
 
           if (data.done) {
             isStreaming.value = false
+            const idxMsg = messages.value.findIndex(m => m.id === assistantMessageId)
+            if (idxMsg !== -1) messages.value[idxMsg].status = 'complete'
           }
         } catch (e) {
           console.error('Failed to parse stream chunk:', jsonStr, e)
@@ -386,12 +339,14 @@ async function sendMessage() {
     }
   } finally {
     isLoading.value = false
-    // isStreaming is set to false when `done:true` or the stream ends.
-    // This signals the queue processor to terminate after emptying the queue.
+    if (!isStreaming.value && assistantMessageId) {
+      const idxMsg = messages.value.findIndex(m => m.id === assistantMessageId)
+      if (idxMsg !== -1) messages.value[idxMsg].status = 'complete'
+    }
   }
 }
 
-function scrollToBottom(behavior: 'smooth' | 'auto' = 'smooth') {
+function scrollToBottom(behavior: 'smooth' | 'auto' = 'auto') {
   const scrollArea = document.querySelector('div[data-slot="scroll-area"]')
   if (scrollArea) {
       window.scrollTo({
@@ -404,6 +359,7 @@ function scrollToBottom(behavior: 'smooth' | 'auto' = 'smooth') {
 // Auto-focus textarea on mount
 onMounted(() => {
   nextTick(() => {
+    scrollToBottom('auto')
     const textarea = textareaRef.value?.$el || textareaRef.value
     if (textarea && textarea.focus) {
       textarea.focus()

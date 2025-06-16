@@ -8,9 +8,20 @@ import { db } from '~/server/db'
 import { conversations, messages } from '~/server/db/schema'
 import { lucia } from '~/server/plugins/lucia'
 import { setAbortController, removeAbortController } from '~/server/utils/abortControllers'
+import { validateIncomingAttachments, linkAttachmentsToMessage, IncomingAttachment, buildVendorAttachmentParts } from '~/server/utils/attachments'
+import { buildAnthropicMessages } from '~/server/utils/anthropic'
+import { buildOpenAIMessages } from '~/server/utils/openai'
+import { buildGeminiMessages } from '~/server/utils/gemini'
 
 const chatSchema = z.object({
-  message: z.string().min(1),
+  message: z.string(),
+  attachments: z.array(z.object({
+    id: z.string(),
+    url: z.string(),
+    fileName: z.string(),
+    mimeType: z.string(),
+    size: z.number(),
+  })).optional().default([]),
   conversationId: z.string().nullable().optional(),
   model: z.enum([
     'gpt-4o',
@@ -35,7 +46,6 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
 
   try {
-    // Verify authentication
     const sessionId = getCookie(event, lucia.sessionCookieName)
     if (!sessionId) {
       throw createError({
@@ -53,11 +63,15 @@ export default defineEventHandler(async (event) => {
     }
 
     const body = await readBody(event)
-    const { message, conversationId, model } = chatSchema.parse(body)
+    const { message, conversationId, model, attachments } = chatSchema.parse(body)
+
+    const validationErr = validateIncomingAttachments(model, attachments as IncomingAttachment[])
+    if (validationErr) {
+      throw createError({ statusCode: 400, statusMessage: validationErr })
+    }
 
     let currentConversationId = conversationId
 
-    // Create conversation if it doesn't exist
     if (!currentConversationId) {
       currentConversationId = nanoid()
       const title = message.slice(0, 50) + (message.length > 50 ? '...' : '')
@@ -71,7 +85,6 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Save user message
     const userMessageId = nanoid()
     await db.insert(messages).values({
       id: userMessageId,
@@ -82,7 +95,9 @@ export default defineEventHandler(async (event) => {
       createdAt: new Date()
     })
 
-    // Get conversation history
+    if (attachments && attachments.length > 0) {
+      await linkAttachmentsToMessage(userMessageId, attachments as IncomingAttachment[])
+    }
     const history = await db.select().from(messages)
       .where(eq(messages.conversationId, currentConversationId))
       .orderBy(asc(messages.createdAt))
@@ -92,12 +107,27 @@ export default defineEventHandler(async (event) => {
       content: msg.content
     }))
 
-    // Set up streaming response
+    // If request contains image attachments, append them in vendor-specific format for supported models
+    if (attachments && attachments.length && !model.startsWith('claude-')) {
+      const protocol = (event.node.req.headers['x-forwarded-proto'] as string) || 'http'
+      const host = event.node.req.headers.host || 'localhost:3000'
+      const baseUrl = `${protocol}://${host}`
+      const vendorParts = buildVendorAttachmentParts(model, attachments as IncomingAttachment[], baseUrl)
+      if (vendorParts.length) {
+        // Append each part as ChatMessage type by mapping
+        for (const part of vendorParts) {
+          chatMessages.push({
+            role: 'user',
+            content: JSON.stringify(part)
+          })
+        }
+      }
+    }
+
     setHeader(event, 'Content-Type', 'text/stream')
     setHeader(event, 'Cache-Control', 'no-cache')
     setHeader(event, 'Connection', 'keep-alive')
 
-    // Check if client disconnected - but don't abort LLM generation
     let clientDisconnected = false
     
     const handleReqClose = () => {
@@ -143,8 +173,8 @@ export default defineEventHandler(async (event) => {
         let fullResponse = ''
         let assistantMessageId = ''
         let userManuallyAborted = false
+        let generationFailed = false
 
-        // Check if client already disconnected via our event listeners
         if (clientDisconnected) {
           console.log('🛑 Connection lost before LLM request, aborting')
           controller.close()
@@ -152,9 +182,8 @@ export default defineEventHandler(async (event) => {
         }
 
         try {
-          // Create initial streaming message with a unique stream ID
           assistantMessageId = nanoid()
-          const streamId = nanoid() // Unique stream identifier
+          const streamId = nanoid()
           
           await db.insert(messages).values({
             id: assistantMessageId,
@@ -175,16 +204,9 @@ export default defineEventHandler(async (event) => {
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ messageId: assistantMessageId })}\n\n`))
             }
           } catch (e) {
-            // If the client already disconnected this will throw – ignore.
           }
-
-          // -----------------------------
-          // Shared abort controller logic
-          // -----------------------------
           const abortController = new AbortController()
 
-          // Expose this controller so the frontend can cancel via
-          // PUT /api/messages/:id/stop
           setAbortController(assistantMessageId, abortController)
 
           try {
@@ -193,18 +215,37 @@ export default defineEventHandler(async (event) => {
                 apiKey: config.openaiApiKey
               })
 
-              // Log the request payload
+              const openaiMessages = await buildOpenAIMessages(chatMessages, attachments as IncomingAttachment[] | undefined, event)
+
               const requestPayload = {
                 model,
-                messages: chatMessages,
+                messages: openaiMessages,
                 stream: true
               }
+
+              // Log the request payload
               console.log('🚀 OpenAI API Request:', {
                 url: 'https://api.openai.com/v1/chat/completions',
                 method: 'POST',
                 model,
-                messageCount: chatMessages.length,
-                messages: chatMessages.map(msg => ({ role: msg.role, content: msg.content.slice(0, 100) + (msg.content.length > 100 ? '...' : '') })),
+                messageCount: openaiMessages.length,
+                messages: openaiMessages.map(msg => {
+                  if (typeof msg.content === 'string') {
+                    return { role: msg.role, content: msg.content.slice(0, 100) + (msg.content.length > 100 ? '...' : '') }
+                  }
+                  // Handle array of parts for vision models
+                  const contentParts = Array.isArray(msg.content) ? msg.content : []
+                  const partsSummary = contentParts.map((part: any) => {
+                    if (part.type === 'text') {
+                      return `{text: "${part.text.slice(0, 40)}..."}`
+                    }
+                    if (part.type === 'image_url') {
+                      return `{image_url: "${part.image_url.url.slice(0, 60)}..."}`
+                    }
+                    return '{unknown part}'
+                  }).join(', ')
+                  return { role: msg.role, content: `[${partsSummary}]` }
+                }),
               })
 
               const startTime = Date.now()
@@ -297,14 +338,15 @@ export default defineEventHandler(async (event) => {
                 maxTokens = 4096 // Claude Opus 4 can handle up to 32K, but we'll use 4K for reasonable response times
               }
 
+              // Build Anthropic messages with proper image blocks (base64 if local/non-https)
+              const anthropicMessages = await buildAnthropicMessages(chatMessages, attachments as IncomingAttachment[] | undefined, event)
 
               const startTime = Date.now()
-              // console.log('⏱️ Starting Anthropic request at:', new Date().toISOString())
 
               const stream = await anthropic.messages.create({
                 model,
                 max_tokens: maxTokens,
-                messages: chatMessages,
+                messages: anthropicMessages,
                 stream: true
               }, {
                 signal: abortController.signal
@@ -381,27 +423,17 @@ export default defineEventHandler(async (event) => {
                 throw new Error('Missing Gemini API key')
               }
 
-              const googleMessages = chatMessages.map((msg) => ({
-                role: msg.role === 'user' ? 'user' : 'model',
-                parts: [{ text: msg.content }]
-              }))
+              const googleMessages = await buildGeminiMessages(chatMessages, attachments as IncomingAttachment[] | undefined, event)
 
               const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`;
 
-              // Shared abortController will cancel the fetch when requested
               const response = await fetch(url, {
                 method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 signal: abortController.signal,
                 body: JSON.stringify({
                   contents: googleMessages,
-                  generationConfig: {
-                    maxOutputTokens: 2048,
-                    temperature: 0.9,
-                    topP: 0.95
-                  }
+                  generationConfig: { maxOutputTokens: 2048, temperature: 0.9, topP: 0.95 }
                 })
               })
 
@@ -421,106 +453,61 @@ export default defineEventHandler(async (event) => {
                   if (done) break
 
                   buffer += decoder.decode(value, { stream: true })
-                  let cleanBuffer = buffer.replace(/^\[/, '').replace(/\]$/, '')
                   
-                  const possibleObjects = cleanBuffer.split(/,(?=\s*{)/)
-                  
-                  // Keep the last incomplete object in buffer
-                  if (possibleObjects.length > 1) {
-                    buffer = possibleObjects.pop() || ''
+                  // The stream is a single JSON array, delivered in chunks.
+                  // We need to find and parse individual JSON objects from the stream.
+                  let objStartIndex = buffer.indexOf('{')
+                  while (objStartIndex !== -1) {
+                    let braceCount = 0
+                    let objEndIndex = -1
+                    let inString = false
                     
-                    for (const objStr of possibleObjects) {
-                      const trimmedObj = objStr.trim()
-                      if (!trimmedObj) continue
+                    for (let i = objStartIndex; i < buffer.length; i++) {
+                      if (buffer[i] === '"' && (i === 0 || buffer[i - 1] !== '\\')) {
+                        inString = !inString
+                      }
+                      if (!inString) {
+                        if (buffer[i] === '{') braceCount++
+                        else if (buffer[i] === '}') braceCount--
+                      }
+                      
+                      if (braceCount === 0) {
+                        objEndIndex = i
+                        break
+                      }
+                    }
+                    
+                    if (objEndIndex !== -1) {
+                      const jsonStr = buffer.substring(objStartIndex, objEndIndex + 1)
+                      buffer = buffer.substring(objEndIndex + 1) // Remaining buffer
                       
                       try {
-                        const data = JSON.parse(trimmedObj)
-                        
+                        const data = JSON.parse(jsonStr)
                         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
                         if (text) {
                           fullResponse += text
-                          
-                          // Update database in real-time with new content
-                          await db.update(messages)
-                            .set({ content: fullResponse })
-                            .where(eq(messages.id, assistantMessageId))
-                          
-                          try {
-                            // Only send to client if still connected
-                            if (!clientDisconnected) {
-                              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
-                            }
-                          } catch (e) {
-                            // Stream might be closed if client disconnected
-                            if ((e as Error)?.message?.includes('closed')) {
-                              console.log('🔌 Client stream closed, but continuing Gemini generation in background')
-                              clientDisconnected = true
-                            } else {
-                              throw e
-                            }
+                          await db.update(messages).set({ content: fullResponse }).where(eq(messages.id, assistantMessageId))
+                          if (!clientDisconnected) {
+                            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
                           }
                         }
                       } catch (e) {
-                        console.warn('⚠️ Failed to parse Gemini chunk:', trimmedObj.slice(0, 100), e)
+                        // This might happen if we grab a partial object. It's noisy but not a fatal error.
+                        // The buffer will keep filling until a valid object is parsed.
                       }
+                      objStartIndex = buffer.indexOf('{') // Look for the next object
+                    } else {
+                      // Incomplete object in buffer, break and wait for more data
+                      break
                     }
                   }
                 }
               } catch (error) {
-                if ((error as Error)?.name === 'AbortError') {
-                  console.log('🛑 Gemini reader aborted successfully')
-                  // Re-throw to be caught by the outer handler
-                  throw error
-                } else {
+                if ((error as Error)?.name !== 'AbortError') {
                   console.error('❌ Error reading Gemini stream:', error)
-                  throw error
                 }
-              } finally {
-                // Ensure reader is properly closed
-                try {
-                  reader.releaseLock()
-                } catch (e) {
-                  // Reader might already be closed
-                }
+                throw error
               }
-
-              // Parse any remaining buffer content
-              if (buffer.trim()) {
-                const cleanBuffer = buffer.replace(/^\[/, '').replace(/\]$/, '').trim()
-                if (cleanBuffer) {
-                  try {
-                    const data = JSON.parse(cleanBuffer)
-                    
-                    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-                    if (text) {
-                      fullResponse += text
-                      
-                      // Update database in real-time with new content
-                      await db.update(messages)
-                        .set({ content: fullResponse })
-                        .where(eq(messages.id, assistantMessageId))
-                      
-                      try {
-                        // Only send to client if still connected
-                        if (!clientDisconnected) {
-                          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
-                        }
-                      } catch (e) {
-                        // Stream might be closed if client disconnected
-                        if ((e as Error)?.message?.includes('closed')) {
-                          console.log('🔌 Client stream closed during final Gemini processing')
-                          clientDisconnected = true
-                        } else {
-                          throw e
-                        }
-                      }
-                    }
-                  } catch (e) {
-                    console.warn('⚠️ Failed to parse final Gemini chunk:', cleanBuffer.slice(0, 100), e)
-                  }
-                }
-              }
-
             } else {
               const groq = new Groq({
                 apiKey: config.groqApiKey
@@ -588,22 +575,23 @@ export default defineEventHandler(async (event) => {
               userManuallyAborted = true
             } else {
               // Propagate other errors to the outer catch block
+              generationFailed = true
               throw error
             }
           }
 
-          // Save message if we have any content (even partial)
-          if (fullResponse.trim() || userManuallyAborted) {
-            // Update the existing message with final content and status
+          if (fullResponse.trim() || userManuallyAborted || generationFailed) {
             await db.update(messages)
               .set({ 
                 content: fullResponse,
-                status: userManuallyAborted ? 'incomplete' : 'complete'
+                status: (userManuallyAborted || generationFailed) ? 'incomplete' : 'complete'
               })
               .where(eq(messages.id, assistantMessageId))
 
             if (userManuallyAborted) {
               console.log('💾 Saved partial response to database after user abort: ' + fullResponse.length + ' characters')
+            } else if (generationFailed) {
+              console.log('💾 Generation failed, saved empty placeholder message')
             } else if (clientDisconnected) {
               console.log('💾 Background generation complete. Saved full response to database: ' + fullResponse.length + ' characters')
             } else {
@@ -615,14 +603,19 @@ export default defineEventHandler(async (event) => {
                   done: true 
                 })}\n\n`))
               } catch (e) {
-                // Stream might be closed, but that's ok since we already saved the message
                 console.log('🛑 Stream closed while sending completion signal')
               }
             }
           } else {
-            // Delete the empty message if no content was generated
-            await db.delete(messages).where(eq(messages.id, assistantMessageId))
-            console.log('🛑 Deleted empty message (no content generated)')
+            if (generationFailed) {
+              // Keep the message record but mark incomplete so polling stops
+              await db.update(messages).set({ status: 'incomplete' }).where(eq(messages.id, assistantMessageId))
+              console.log('🛑 Generation failed, saved empty placeholder message')
+            } else {
+              // Delete the empty message if truly nothing happened
+              await db.delete(messages).where(eq(messages.id, assistantMessageId))
+              console.log('🛑 Deleted empty message (no content generated)')
+            }
           }
           
         } catch (error) {
@@ -633,11 +626,25 @@ export default defineEventHandler(async (event) => {
             messageCount: chatMessages.length,
             timestamp: new Date().toISOString()
           })
+
+          // Mark message as incomplete in DB on failure
+          if (assistantMessageId) {
+            try {
+              await db.update(messages)
+                .set({ status: 'incomplete' })
+                .where(eq(messages.id, assistantMessageId))
+              console.log(`💾 Marked message ${assistantMessageId} as incomplete due to generation error.`)
+            } catch (dbError) {
+              console.error('❌ Failed to update message status on error:', dbError)
+            }
+          }
+
           // Only enqueue error if client is still connected
           if (!clientDisconnected) {
             try {
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
-                error: 'Failed to generate response' 
+                error: 'Failed to generate response',
+                done: true // Signal to frontend that the stream is over
               })}\n\n`))
             } catch (e) {
               console.log('🔌 Client stream closed, could not send error message.')

@@ -7,7 +7,7 @@
       'max-w-[100%] rounded-lg p-3 relative group backdrop-blur-xl border-none bg-transparent',
       message.role === 'user' 
         ? 'bg-primary text-primary-foreground ml-12  backdrop-blur-4xl border-none' 
-        : 'bg-background/20 border-none',
+        : 'bg-background/20 border-none w-full',
       isStreaming && 'mb-10'
     )"
     
@@ -20,18 +20,27 @@
         {{ message.model }}
       </div>
 
+      <!-- USER ATTACHMENT PREVIEWS -->
+      <div v-if="imageAttachments.length" class="mb-2 flex flex-wrap gap-2">
+        <div v-for="att in imageAttachments" :key="att.id">
+          <img :src="att.url" :alt="att.fileName" class="max-h-48 rounded-lg object-cover" @load="onImageLoad" />
+        </div>
+      </div>
+
       <!-- Message Text -->
       <div
         class="prose prose-sm dark:prose-invert max-w-none"
         :class="{ 'animate-pulse': isStreaming && !message.content }"
       >
+        <!-- Show generated content once available -->
         <div v-if="message.content" v-html="renderedContent" />
-        <template v-else-if="isStreaming">
-          <div class="flex items-center gap-2 text-foreground">
-            <Icon name="lucide:loader-2" class="w-4 h-4 animate-spin" />
-            <span>Thinking...</span>
-          </div>
-        </template>
+
+        <!-- While streaming with no content yet, show spinner + text -->
+        <div v-else-if="isStreaming" class="flex items-center gap-2 text-foreground">
+          <Icon name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+          <span>Thinking...</span>
+        </div>
+
       </div>
 
 
@@ -77,6 +86,10 @@
 <script setup lang="ts">
 import { cn } from '~/lib/utils'
 import { toast } from 'vue-sonner'
+import { computed } from 'vue'
+import { marked } from 'marked'
+
+const emit = defineEmits(['image-loaded'])
 
 interface Message {
   id: string
@@ -85,6 +98,7 @@ interface Message {
   model?: string
   status?: string
   createdAt: Date
+  attachments?: any[]
 }
 
 interface Props {
@@ -96,6 +110,15 @@ interface Props {
 const props = defineProps<Props>()
 
 const { parseMarkdown } = useMarkdown()
+
+function onImageLoad() {
+  emit('image-loaded')
+}
+
+const imageAttachments = computed(() => {
+  if (!props.message.attachments || props.message.role !== 'user') return []
+  return props.message.attachments.filter(att => att.mimeType && att.mimeType.startsWith('image/'))
+})
 
 // Computed property to render markdown content
 const renderedContent = computed(() => {
@@ -133,4 +156,13 @@ async function copyMessage() {
     })
   }
 }
-</script> 
+</script>
+
+<style scoped>
+.blinker {
+  animation: blink 1s steps(1) infinite;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+</style> 
