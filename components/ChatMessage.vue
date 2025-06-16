@@ -21,10 +21,41 @@
       </div>
 
       <!-- USER ATTACHMENT PREVIEWS -->
-      <div v-if="imageAttachments.length" class="mb-2 flex flex-wrap gap-2">
-        <div v-for="att in imageAttachments" :key="att.id">
-          <img :src="att.url" :alt="att.fileName" class="max-h-48 rounded-lg object-cover" @load="onImageLoad" />
-        </div>
+      <div v-if="imageAttachments.length || pdfAttachments.length" class="mb-2 flex flex-wrap gap-2">
+        <!-- Image thumbnails -->
+        <a
+          v-for="att in imageAttachments"
+          :key="att.id"
+          :href="att.url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="block"
+        >
+          <img
+            :src="att.url"
+            :alt="att.fileName"
+            class="max-h-48 rounded-lg object-cover cursor-pointer hover:opacity-90 transition"
+            @load="onImageLoad"
+          />
+        </a>
+
+        <!-- PDF previews -->
+        <a
+          v-for="att in pdfAttachments"
+          :key="att.id"
+          :href="att.url"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="relative block group"
+        >
+          <object
+            :data="att.url"
+            type="application/pdf"
+            class="w-40 h-48 rounded border cursor-pointer group-hover:opacity-90 transition" />
+          <div class="absolute bottom-1 left-1 right-1 text-xs text-center bg-black/60 hover:bg-black/80 text-white rounded px-1 py-0.5 truncate cursor-pointer transition">
+            {{ att.fileName }}
+          </div>
+        </a>
       </div>
 
       <!-- Message Text -->
@@ -118,6 +149,11 @@ function onImageLoad() {
 const imageAttachments = computed(() => {
   if (!props.message.attachments || props.message.role !== 'user') return []
   return props.message.attachments.filter(att => att.mimeType && att.mimeType.startsWith('image/'))
+})
+
+const pdfAttachments = computed(() => {
+  if (!props.message.attachments || props.message.role !== 'user') return []
+  return props.message.attachments.filter(att => att.mimeType === 'application/pdf')
 })
 
 // Computed property to render markdown content

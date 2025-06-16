@@ -31,12 +31,18 @@ export async function buildAnthropicMessages (
         if (msg.content) parts.push({ type: 'text', text: msg.content })
 
         for (const att of attachments) {
-          if (!att.mimeType.startsWith('image/')) continue
+          const isImage = att.mimeType.startsWith('image/')
+          const isPdf = att.mimeType === 'application/pdf'
+          if (!isImage && !isPdf) continue
 
-          let imagePart: any = null
+          let part: any = null
           const externalUrl = att.url.startsWith('http') ? att.url : `${baseUrl}${att.url}`
           if (externalUrl.startsWith('https://')) {
-            imagePart = { type: 'image', source: { type: 'url', url: externalUrl } }
+            if (isImage) {
+              part = { type: 'image', source: { type: 'url', url: externalUrl } }
+            } else if (isPdf) {
+              part = { type: 'document', source: { type: 'url', url: externalUrl } }
+            }
           } else {
             try {
               const filePath = (() => {
@@ -49,12 +55,23 @@ export async function buildAnthropicMessages (
               })()
               if (filePath) {
                 const buf = await fs.readFile(filePath)
-                imagePart = {
-                  type: 'image',
-                  source: {
-                    type: 'base64',
-                    media_type: att.mimeType,
-                    data: buf.toString('base64')
+                if (isImage) {
+                  part = {
+                    type: 'image',
+                    source: {
+                      type: 'base64',
+                      media_type: att.mimeType,
+                      data: buf.toString('base64')
+                    }
+                  }
+                } else if (isPdf) {
+                  part = {
+                    type: 'document',
+                    source: {
+                      type: 'base64',
+                      media_type: att.mimeType,
+                      data: buf.toString('base64')
+                    }
                   }
                 }
               }
@@ -62,7 +79,7 @@ export async function buildAnthropicMessages (
               console.warn('⚠️ Failed to inline image for Anthropic, skipping', e)
             }
           }
-          if (imagePart) parts.push(imagePart)
+          if (part) parts.push(part)
         }
         return { role: 'user', content: parts }
       }
