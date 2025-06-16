@@ -25,7 +25,7 @@
         </div>
 
                 <!-- Right Content -->
-        <div class="flex-1 overflow-y-auto">
+        <div class="flex-1 overflow-y-auto overflow-x-hidden">
           <!-- Tab Content with Transition -->
           <Transition name="slide-fade" mode="out-in">
             <!-- General Tab -->
@@ -204,130 +204,6 @@
               </div>
             </div>
 
-            <!-- Notifications Tab -->
-            <div v-else-if="activeTab === 'notifications'" key="notifications" class="space-y-6">
-              <div>
-                <h3 class="text-lg font-medium mb-4">Notifications</h3>
-                
-                <div class="space-y-4">
-                  <div class="flex items-center justify-between py-3">
-                    <div>
-                      <div class="text-sm font-medium">Email notifications</div>
-                      <div class="text-xs text-muted-foreground">Receive updates via email</div>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      @click="settings.emailNotifications = !settings.emailNotifications"
-                      :class="[
-                        'transition-all duration-200 ease-in-out',
-                        settings.emailNotifications ? 'bg-primary text-primary-foreground' : ''
-                      ]"
-                    >
-                      {{ settings.emailNotifications ? 'On' : 'Off' }}
-                    </Button>
-                  </div>
-
-                  <div class="flex items-center justify-between py-3">
-                    <div>
-                      <div class="text-sm font-medium">Push notifications</div>
-                      <div class="text-xs text-muted-foreground">Browser notifications for new messages</div>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      @click="settings.pushNotifications = !settings.pushNotifications"
-                      :class="[
-                        'transition-all duration-200 ease-in-out',
-                        settings.pushNotifications ? 'bg-primary text-primary-foreground' : ''
-                      ]"
-                    >
-                      {{ settings.pushNotifications ? 'On' : 'Off' }}
-                    </Button>
-                  </div>
-
-                  <div class="flex items-center justify-between py-3">
-                    <div>
-                      <div class="text-sm font-medium">Sound notifications</div>
-                      <div class="text-xs text-muted-foreground">Play sound when receiving messages</div>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      @click="settings.soundNotifications = !settings.soundNotifications"
-                      :class="[
-                        'transition-all duration-200 ease-in-out',
-                        settings.soundNotifications ? 'bg-primary text-primary-foreground' : ''
-                      ]"
-                    >
-                      {{ settings.soundNotifications ? 'On' : 'Off' }}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Personalization Tab -->
-            <div v-else-if="activeTab === 'personalization'" key="personalization" class="space-y-6">
-              <div>
-                <h3 class="text-lg font-medium mb-4">Personalization</h3>
-                
-                <div class="space-y-4">
-                  <!-- Model Preference -->
-                  <div class="space-y-3">
-                    <label class="text-sm font-medium">Preferred AI Model</label>
-                    <Select v-model="settings.preferredModel">
-                      <SelectTrigger class="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gpt-4o">GPT-4o (OpenAI)</SelectItem>
-                        <SelectItem value="claude-3-sonnet">Claude 3 Sonnet (Anthropic)</SelectItem>
-                        <SelectItem value="llama-3-70b">Llama 3 70B (Groq)</SelectItem>
-                        <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro (Google)</SelectItem>
-                        <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash (Google)</SelectItem>
-                        <SelectItem value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (Google)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <!-- Response Style -->
-                  <div class="space-y-3">
-                    <label class="text-sm font-medium">Response Style</label>
-                    <Select v-model="settings.responseStyle">
-                      <SelectTrigger class="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="balanced">Balanced</SelectItem>
-                        <SelectItem value="creative">Creative</SelectItem>
-                        <SelectItem value="precise">Precise</SelectItem>
-                        <SelectItem value="concise">Concise</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div class="flex items-center justify-between py-3">
-                    <div>
-                      <div class="text-sm font-medium">Show model in responses</div>
-                      <div class="text-xs text-muted-foreground">Display which AI model generated the response</div>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      @click="settings.showModel = !settings.showModel"
-                      :class="[
-                        'transition-all duration-200 ease-in-out',
-                        settings.showModel ? 'bg-primary text-primary-foreground' : ''
-                      ]"
-                    >
-                      {{ settings.showModel ? 'On' : 'Off' }}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <!-- Account Tab -->
             <div v-else-if="activeTab === 'account'" key="account" class="space-y-6">
               <div>
@@ -349,7 +225,7 @@
                   </div>
 
                   <!-- Change Password -->
-                  <div class="flex items-center justify-between py-3 border-b transition-colors duration-200 hover:bg-muted/50">
+                  <div class="flex items-center justify-between py-3 transition-colors duration-200 hover:bg-muted/50">
                     <div>
                       <div class="text-sm font-medium">Change password</div>
                       <div class="text-xs text-muted-foreground">Update your account password</div>
@@ -357,18 +233,6 @@
                     <Button variant="outline" size="sm" class="transition-all duration-200 hover:scale-105">
                       <Icon name="lucide:key" class="w-4 h-4 mr-2" />
                       Change
-                    </Button>
-                  </div>
-
-                  <!-- Two-Factor Auth -->
-                  <div class="flex items-center justify-between py-3 border-b transition-colors duration-200 hover:bg-muted/50">
-                    <div>
-                      <div class="text-sm font-medium">Two-factor authentication</div>
-                      <div class="text-xs text-muted-foreground">Add an extra layer of security</div>
-                    </div>
-                    <Button variant="outline" size="sm" class="transition-all duration-200 hover:scale-105">
-                      <Icon name="lucide:shield" class="w-4 h-4 mr-2" />
-                      Setup
                     </Button>
                   </div>
 
@@ -439,9 +303,7 @@ const tabs = [
   { id: 'general', label: 'General', icon: 'lucide:settings' },
   { id: 'background', label: 'Background', icon: 'lucide:image' },
   { id: 'chat', label: 'Chat Management', icon: 'lucide:message-square' },
-  { id: 'notifications', label: 'Notifications', icon: 'lucide:bell' },
-  { id: 'personalization', label: 'Personalization', icon: 'lucide:user' },
-  { id: 'account', label: 'Account & Security', icon: 'lucide:shield' },
+  { id: 'account', label: 'Account', icon: 'lucide:user' },
 ]
 
 const settings = reactive({
