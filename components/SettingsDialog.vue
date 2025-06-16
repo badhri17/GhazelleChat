@@ -34,75 +34,36 @@
                 <h3 class="text-lg font-medium mb-4">General Settings</h3>
                 
                 <!-- Theme Section -->
-                <div class="space-y-3">
-                  <label class="text-sm font-medium">Theme</label>
+                <div class="space-y-3 flex flex-col">
+                  <label class="text-sm font-medium gap-2">Theme</label>
                   <Select v-model="settings.theme">
                     <SelectTrigger class="w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent class="w-full bg-background/50 backdrop-blur-xl">
                       <SelectItem value="light">Light</SelectItem>
                       <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <!-- Language Section -->
-                <div class="space-y-3">
-                  <label class="text-sm font-medium">Language</label>
-                  <Select v-model="settings.language">
-                    <SelectTrigger class="w-full">
+                <div class="space-y-3 flex flex-col mt-4">
+                  <label class="text-sm font-medium gap-2">Language</label>
+                  <Select v-model="settings.language" class="">
+                    <SelectTrigger class="w-full" >
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto-detect">Auto-detect</SelectItem>
+                    <SelectContent class="w-full bg-background/50 backdrop-blur-xl">
                       <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Spanish</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                      <SelectItem value="de">German</SelectItem>
                       <SelectItem value="ar">Arabic</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <!-- Follow Up Toggle -->
-                <div class="flex items-center justify-between py-3">
-                  <div>
-                    <div class="text-sm font-medium">Show follow up suggestions</div>
-                    <div class="text-xs text-muted-foreground">Display suggested questions after responses</div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    @click="settings.showFollowUp = !settings.showFollowUp"
-                    :class="[
-                      'transition-all duration-200 ease-in-out',
-                      settings.showFollowUp ? 'bg-primary text-primary-foreground' : ''
-                    ]"
-                  >
-                    {{ settings.showFollowUp ? 'On' : 'Off' }}
-                  </Button>
-                </div>
+               
 
-                <!-- Code Analyst Toggle -->
-                <div class="flex items-center justify-between py-3">
-                  <div>
-                    <div class="text-sm font-medium">Always show code when using data analyst</div>
-                    <div class="text-xs text-muted-foreground">Display code blocks automatically</div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    @click="settings.showCodeAnalyst = !settings.showCodeAnalyst"
-                    :class="[
-                      'transition-all duration-200 ease-in-out',
-                      settings.showCodeAnalyst ? 'bg-primary text-primary-foreground' : ''
-                    ]"
-                  >
-                    {{ settings.showCodeAnalyst ? 'On' : 'Off' }}
-                  </Button>
-                </div>
+               
               </div>
             </div>
 
@@ -403,8 +364,8 @@ const tabs = [
 ]
 
 const settings = reactive({
-  theme: 'system',
-  language: 'auto-detect',
+  theme: 'light',
+  language: 'en',
   showFollowUp: true,
   showCodeAnalyst: true,
   emailNotifications: true,
@@ -539,6 +500,26 @@ onMounted(() => {
     if (saved) {
       Object.assign(settings, JSON.parse(saved))
     }
+  }
+})
+
+// ─────── Theme synchronization with global color mode ───────
+const colorMode = useColorMode()
+
+// initialize setting to current mode on mount (light/dark)
+onMounted(() => {
+  settings.theme = colorMode.value === 'dark' ? 'dark' : 'light'
+})
+
+// when select changes -> update global color mode
+watch(() => settings.theme, (val) => {
+  colorMode.preference = val
+})
+
+// keep select in sync when toggle button changes theme elsewhere
+watch(() => colorMode.value, (val) => {
+  if (settings.theme !== val) {
+    settings.theme = val as 'light' | 'dark'
   }
 })
 </script>

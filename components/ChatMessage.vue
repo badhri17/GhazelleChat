@@ -60,7 +60,7 @@
 
       <!-- Message Text -->
       <div
-        class="prose prose-sm dark:prose-invert max-w-none"
+        class="prose dark:prose-invert max-w-none"
         :class="{ 'animate-pulse': isStreaming && !message.content }"
       >
         <!-- Show generated content once available -->
