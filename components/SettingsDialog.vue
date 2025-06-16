@@ -1,6 +1,6 @@
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="sm:max-w-[700px] max-h-[80vh] overflow-hidden backdrop-blur-xl">
+    <DialogContent class="sm:max-w-[750px] max-h-[80vh] overflow-hidden backdrop-blur-xl">
       <DialogHeader>
         <DialogTitle class="text-xl font-semibold">Settings</DialogTitle>
       </DialogHeader>
@@ -160,7 +160,7 @@
                     <div class="text-sm font-medium">Archived chats</div>
                     <div class="text-xs text-muted-foreground">View and manage archived conversations</div>
                   </div>
-                  <Button variant="outline" size="sm" class="transition-all duration-200 hover:scale-105">
+                  <Button variant="outline" size="sm" @click="showComingSoonToast" class="transition-all duration-200 hover:scale-105">
                     <Icon name="lucide:archive" class="w-4 h-4 mr-2" />
                     Manage
                   </Button>
@@ -172,7 +172,7 @@
                     <div class="text-sm font-medium">Archive all chats</div>
                     <div class="text-xs text-muted-foreground">Move all conversations to archive</div>
                   </div>
-                  <Button variant="outline" size="sm" class="transition-all duration-200 hover:scale-105">
+                  <Button variant="outline" size="sm" @click="showComingSoonToast" class="transition-all duration-200 hover:scale-105">
                     <Icon name="lucide:archive" class="w-4 h-4 mr-2" />
                     Archive all
                   </Button>
@@ -184,7 +184,7 @@
                     <div class="text-sm font-medium">Export chats</div>
                     <div class="text-xs text-muted-foreground">Download your conversation history</div>
                   </div>
-                  <Button variant="outline" size="sm" class="transition-all duration-200 hover:scale-105">
+                  <Button variant="outline" size="sm" @click="showComingSoonToast" class="transition-all duration-200 hover:scale-105">
                     <Icon name="lucide:download" class="w-4 h-4 mr-2" />
                     Export
                   </Button>
@@ -196,7 +196,7 @@
                     <div class="text-sm font-medium">Delete all chats</div>
                     <div class="text-xs text-muted-foreground text-red-600">This action cannot be undone</div>
                   </div>
-                  <Button variant="destructive" size="sm" class="transition-all duration-200 hover:scale-105">
+                  <Button variant="destructive" size="sm" @click="showComingSoonToast" class="transition-all duration-200 hover:scale-105">
                     <Icon name="lucide:trash-2" class="w-4 h-4 mr-2" />
                     Delete all
                   </Button>
@@ -219,18 +219,29 @@
                       <div>
                         <div class="font-medium">{{ user?.fullName || user?.email }}</div>
                         <div class="text-sm text-muted-foreground">{{ user?.email }}</div>
-                        <div class="text-xs text-muted-foreground">Free Plan</div>
                       </div>
                     </div>
                   </div>
 
+                  <!-- Change Name -->
+                  <div class="flex items-center justify-between py-3 border-b transition-colors duration-200 hover:bg-muted/50">
+                    <div>
+                      <div class="text-sm font-medium">Change name</div>
+                      <div class="text-xs text-muted-foreground">Update your display name</div>
+                    </div>
+                    <Button variant="outline" size="sm" @click="showChangeNameDialog = true" class="transition-all duration-200 hover:scale-105">
+                      <Icon name="lucide:user" class="w-4 h-4 mr-2" />
+                      Change
+                    </Button>
+                  </div>
+
                   <!-- Change Password -->
-                  <div class="flex items-center justify-between py-3 transition-colors duration-200 hover:bg-muted/50">
+                  <div class="flex items-center justify-between py-3 border-b transition-colors duration-200 hover:bg-muted/50">
                     <div>
                       <div class="text-sm font-medium">Change password</div>
                       <div class="text-xs text-muted-foreground">Update your account password</div>
                     </div>
-                    <Button variant="outline" size="sm" class="transition-all duration-200 hover:scale-105">
+                    <Button variant="outline" size="sm" @click="showChangePasswordDialog = true" class="transition-all duration-200 hover:scale-105">
                       <Icon name="lucide:key" class="w-4 h-4 mr-2" />
                       Change
                     </Button>
@@ -254,6 +265,89 @@
         </div>
       </div>
     </DialogContent>
+
+    <!-- Change Name Dialog -->
+    <Dialog v-model:open="showChangeNameDialog">
+      <DialogContent class="sm:max-w-[425px] bg-background/50 backdrop-blur-xl">
+        <DialogHeader>
+          <DialogTitle>Change Name</DialogTitle>
+        </DialogHeader>
+        <form @submit.prevent="handleChangeName" class="space-y-8">
+          <div class="space-y-12">
+            <label for="newName" class="text-sm font-medium">New Name</label>
+            <input
+              id="newName"
+              v-model="newName"
+              type="text"
+              required
+              class="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary mt-2"
+              placeholder="Enter your new name"
+            />
+          </div>
+          <div class="flex justify-end gap-2">
+            <Button type="button" variant="outline" @click="showChangeNameDialog = false">
+              Cancel
+            </Button>
+            <Button type="submit" :disabled="!newName.trim() || changingName">
+              {{ changingName ? 'Changing...' : 'Change Name' }}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Change Password Dialog -->
+    <Dialog v-model:open="showChangePasswordDialog">
+      <DialogContent class="sm:max-w-[425px] bg-background/50 backdrop-blur-xl">
+        <DialogHeader>
+          <DialogTitle>Change Password</DialogTitle>
+        </DialogHeader>
+        <form @submit.prevent="handleChangePassword" class="space-y-4">
+          <div class="space-y-2">
+            <label for="oldPassword" class="text-sm font-medium">Current Password</label>
+            <input
+              id="oldPassword"
+              v-model="oldPassword"
+              type="password"
+              required
+              class="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Enter your current password"
+            />
+          </div>
+          <div class="space-y-2">
+            <label for="newPassword" class="text-sm font-medium">New Password</label>
+            <input
+              id="newPassword"
+              v-model="newPassword"
+              type="password"
+              required
+              minlength="8"
+              class="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Enter your new password"
+            />
+          </div>
+          <div class="space-y-2">
+            <label for="confirmPassword" class="text-sm font-medium">Confirm New Password</label>
+            <input
+              id="confirmPassword"
+              v-model="confirmPassword"
+              type="password"
+              required
+              class="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Confirm your new password"
+            />
+          </div>
+          <div class="flex justify-end gap-2">
+            <Button type="button" variant="outline" @click="showChangePasswordDialog = false">
+              Cancel
+            </Button>
+            <Button type="submit" :disabled="!isPasswordFormValid || changingPassword">
+              {{ changingPassword ? 'Changing...' : 'Change Password' }}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   </Dialog>
 </template>
 
@@ -272,6 +366,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { toast } from 'vue-sonner'
 
 interface User {
   id: string
@@ -287,6 +382,7 @@ interface Props {
 interface Emits {
   (e: 'update:open', value: boolean): void
   (e: 'logout'): void
+  (e: 'user-updated'): void
 }
 
 const props = defineProps<Props>()
@@ -301,8 +397,8 @@ const activeTab = ref('general')
 
 const tabs = [
   { id: 'general', label: 'General', icon: 'lucide:settings' },
-  { id: 'background', label: 'Background', icon: 'lucide:image' },
-  { id: 'chat', label: 'Chat Management', icon: 'lucide:message-square' },
+  { id: 'background', label: 'Background', icon: 'lucide:picture-in-picture' },
+  { id: 'chat', label: 'Chat Management', icon: 'lucide:message-circle' },
   { id: 'account', label: 'Account', icon: 'lucide:user' },
 ]
 
@@ -319,6 +415,25 @@ const settings = reactive({
   showModel: false,
 })
 
+// Dialog states
+const showChangeNameDialog = ref(false)
+const showChangePasswordDialog = ref(false)
+
+// Form states
+const newName = ref('')
+const oldPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+const changingName = ref(false)
+const changingPassword = ref(false)
+
+// Computed properties
+const isPasswordFormValid = computed(() => {
+  return oldPassword.value.trim() && 
+         newPassword.value.length >= 8 && 
+         newPassword.value === confirmPassword.value
+})
+
 // Background management
 const { availableBackgrounds, currentBackground, setBackground } = useBackground()
 
@@ -327,9 +442,88 @@ watch(currentBackground, (newValue) => {
   console.log('Background changed to:', newValue)
 })
 
+// Methods
 function logout() {
   emit('logout')
 }
+
+function showComingSoonToast() {
+  toast.info('Coming soon!')
+}
+
+async function handleChangeName() {
+  if (!newName.value.trim()) return
+  
+  changingName.value = true
+  try {
+    await $fetch('/api/account/name', {
+      method: 'PUT',
+      body: { newName: newName.value.trim() },
+    })
+
+    showChangeNameDialog.value = false
+    toast.success('Name changed successfully!')
+
+    // Notify parent so it can refresh user data if needed
+    emit('user-updated')
+
+    // Optimistically update local user name if prop provided
+    if (props.user) {
+      // @ts-ignore – prop is readonly, but we explicitly cast for local update
+      (props.user as any).fullName = newName.value.trim()
+    }
+  } catch (error: any) {
+    console.error('Error changing name:', error)
+    const msg = error?.statusMessage || error?.message || 'Failed to change name.'
+    toast.error(msg)
+  } finally {
+    newName.value = ''
+    changingName.value = false
+  }
+}
+
+async function handleChangePassword() {
+  if (!isPasswordFormValid.value) return
+  
+  changingPassword.value = true
+  try {
+    await $fetch('/api/account/password', {
+      method: 'PUT',
+      body: {
+        oldPassword: oldPassword.value,
+        newPassword: newPassword.value,
+      },
+    })
+
+    showChangePasswordDialog.value = false
+    toast.success('Password changed successfully!')
+    emit('user-updated')
+  } catch (error: any) {
+    console.error('Error changing password:', error)
+    const msg = error?.statusMessage || error?.message || 'Failed to change password.'
+    toast.error(msg)
+  } finally {
+    oldPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
+    changingPassword.value = false
+  }
+}
+
+// Reset form when dialogs are closed
+watch(showChangeNameDialog, (newValue) => {
+  if (!newValue) {
+    newName.value = ''
+  }
+})
+
+watch(showChangePasswordDialog, (newValue) => {
+  if (!newValue) {
+    oldPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
+  }
+})
 
 // Watch for settings changes and save to localStorage
 watchEffect(() => {
