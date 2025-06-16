@@ -10,7 +10,7 @@
     />
     <Icon
       icon="radix-icons:sun"
-      class="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 top-2 left-2"
+      class="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 top-2 left-2 "
     />
   </button>
 </template>
