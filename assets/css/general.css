@@ -1,4 +1,3 @@
-
 /* Glossy Toast Styling */
 [data-sonner-toaster] {
   --width: 320px !important;
@@ -82,7 +81,11 @@
   background: #555;
 }
 
-
+/* Remove automatic backticks added by Tailwind Typography for inline code */
+.prose :where(code):not(:where([class~="not-prose"],[class~="not-prose"] *))::before,
+.prose :where(code):not(:where([class~="not-prose"],[class~="not-prose"] *))::after {
+  content: none;
+}
 
 .dark :where(ul > li):not(:where([class~="not-prose"],[class~="not-prose"] *))::marker{
     color: white;

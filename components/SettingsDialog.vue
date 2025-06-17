@@ -174,6 +174,31 @@
               </div>
             </div>
 
+            <!-- Shortcuts Tab -->
+            <div v-else-if="activeTab === 'shortcuts'" key="shortcuts" class="space-y-6">
+              <h3 class="text-lg font-medium mb-4">Keyboard Shortcuts</h3>
+              <ul class="space-y-2 text-sm">
+                <li>
+                  <kbd class="border px-1 py-0.5 rounded">Ctrl + B</kbd>
+                  <span class="mx-1">/</span>
+                  <kbd class="border px-1 py-0.5 rounded">⌘B</kbd>
+                  <span class="ml-2">Toggle sidebar</span>
+                </li>
+                <li>
+                  <kbd class="border px-1 py-0.5 rounded">Ctrl + K</kbd>
+                  <span class="mx-1">/</span>
+                  <kbd class="border px-1 py-0.5 rounded">⌘K</kbd>
+                  <span class="ml-2">Search conversations</span>
+                </li>
+                <li>
+                  <kbd class="border px-1 py-0.5 rounded">Ctrl + Shift + O</kbd>
+                  <span class="mx-1">/</span>
+                  <kbd class="border px-1 py-0.5 rounded">⌘⇧O</kbd>
+                  <span class="ml-2">New chat</span>
+                </li>
+              </ul>
+            </div>
+
             <!-- Account Tab -->
             <div v-else-if="activeTab === 'account'" key="account" class="space-y-6">
               <div>
@@ -204,9 +229,7 @@
                       Change
                     </Button>
                   </div>
-
-                  <!-- Change Password -->
-                  <div class="flex items-center justify-between py-3 border-b transition-colors duration-200 hover:bg-muted/50">
+                  <div class="flex items-center justify-between py-3  transition-colors duration-200 hover:bg-muted/50">
                     <div>
                       <div class="text-sm font-medium">Change password</div>
                       <div class="text-xs text-muted-foreground">Update your account password</div>
@@ -371,6 +394,7 @@ const tabs = [
   { id: 'general', label: 'General', icon: 'lucide:settings' },
   { id: 'background', label: 'Background', icon: 'lucide:picture-in-picture' },
   { id: 'chat', label: 'Chat Management', icon: 'lucide:message-circle' },
+  { id: 'shortcuts', label: 'Shortcuts', icon: 'lucide:keyboard' },
   { id: 'account', label: 'Account', icon: 'lucide:user' },
 ]
 

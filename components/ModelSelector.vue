@@ -6,7 +6,7 @@
         <SelectValue placeholder="Select model" />
       </div>
     </SelectTrigger>
-    <SelectContent class="bg-background/50 backdrop-blur-xl border border-border/40 max-h-96 ">
+    <SelectContent class="bg-background/50 backdrop-blur-xl border border-border/40  ">
       <SelectGroup>
         <SelectLabel class="flex items-center gap-2">
           <Icon name="simple-icons:openai" class="w-4 h-4" />

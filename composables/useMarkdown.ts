@@ -8,7 +8,6 @@ export const useMarkdown = () => {
     gfm: true, // GitHub Flavored Markdown
   })
   
-  // Set up renderer with syntax highlighting
   const renderer = new marked.Renderer()
   renderer.code = function({ text, lang }: { text: string; lang?: string }) {
     const codeId = `code-${Math.random().toString(36).substr(2, 9)}`
@@ -45,10 +44,20 @@ export const useMarkdown = () => {
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-            <path d="m4 16c-1.1 0-2-.9-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+            <path d="m4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
           </svg>
         </button>
       </div>`
+  }
+  
+  // Custom renderer for inline code (`code`)
+  renderer.codespan = function({ text }: { text: string }) {
+    // Escape HTML entities inside inline code
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+    return `<code class="inline-code p-1 rounded bg-muted/70 dark:bg-muted/80 font-mono ">${escaped}</code>`
   }
   
   marked.use({ renderer })

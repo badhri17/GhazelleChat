@@ -14,7 +14,6 @@
     
     <SidebarContent>
       <SidebarGroup v-if="user">
-        <!-- Prominent New Chat Button -->
         <div class="p-2 pb-2">
           <Button @click="() => navigateTo('/chat')" class="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-xs  " :size="'sm'">
             <Icon name="lucide:plus" class="w-4 h-4 mr-2" />
@@ -52,7 +51,7 @@
       </SidebarGroup>
     </SidebarContent>
     
-    <SidebarFooter v-if="user" class="p-4 border-t">
+    <SidebarFooter v-if="user" class="p-4 border-t dark:border-white/20 border-black/20">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3 min-w-0 flex-1">
           <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
