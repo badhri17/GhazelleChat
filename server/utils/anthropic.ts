@@ -1,22 +1,18 @@
 import { IncomingAttachment } from '~/server/utils/attachments'
 
 interface ChatMessage {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: any
 }
 
-/**
- * Build Anthropic‐compatible messages array, injecting image blocks.
- * – If attachment URL is HTTPS ⇒ pass as {type:"url"}
- * – Otherwise inline as base64.
- * Empty content messages are automatically stripped.
- */
 export async function buildAnthropicMessages (
   chatMessages: ChatMessage[],
   attachments: IncomingAttachment[] | undefined,
   event: any
 ): Promise<any[]> {
-  let messages = chatMessages
+  // Explicitly filter out system messages. Claude API uses a top-level `system` parameter.
+  let messages = chatMessages.filter(msg => msg.role !== 'system')
+
   if (attachments && attachments.length > 0) {
     const protocol = (event.node.req.headers['x-forwarded-proto'] as string) || 'http'
     const host = event.node.req.headers.host || 'localhost:3000'
@@ -25,8 +21,8 @@ export async function buildAnthropicMessages (
     const fs = await import('node:fs/promises').then(m => m.default ?? m)
     const path = await import('path').then(m => m.default ?? m)
 
-    messages = await Promise.all(chatMessages.map(async (msg, idx) => {
-      if (idx === chatMessages.length - 1 && msg.role === 'user') {
+    messages = await Promise.all(messages.map(async (msg, idx) => {
+      if (idx === messages.length - 1 && msg.role === 'user') {
         const parts: any[] = []
         if (msg.content) parts.push({ type: 'text', text: msg.content })
 

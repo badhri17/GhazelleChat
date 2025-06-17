@@ -6,7 +6,7 @@
     <ScrollArea class="flex-1 p-4 min-h-0">
       <div class="space-y-4 max-w-4xl mx-auto pb-24">
         <div v-if="messages.length === 0" class="text-center py-12">
-          <Icon name="lucide:message-circle" class="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+          <Icon icon="lucide:message-circle" class="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <h3 class="text-lg font-medium mb-2">Start a conversation</h3>
           <p class="text-muted-foreground">
             Ask me anything and I'll help you with information, creative tasks, or problem-solving.
@@ -29,7 +29,7 @@
               {{ selectedModel }}
             </div>
             <div class="flex items-center gap-2 text-foreground">
-              <Icon name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+              <Icon icon="lucide:loader-2" class="w-4 h-4 animate-spin" />
               <span>Thinking...</span>
             </div>
           </div>
@@ -40,6 +40,11 @@
 </template>
 
 <script setup lang="ts">
+import { ScrollArea } from '@/components/ui/scroll-area'
+import ChatMessage from '~/components/ChatMessage.vue'
+import { Icon } from '@iconify/vue'
+import { useSettings } from '~/composables/useSettings'
+
 interface User {
   id: string
   email: string
@@ -82,6 +87,8 @@ const isStreaming = ref(false)
 const textareaRef = ref()
 
 const pollingInterval = ref<NodeJS.Timeout | null>(null)
+
+const { settings } = useSettings()
 
 async function loadMessages(conversationId: string) {
   try {
@@ -180,6 +187,7 @@ async function sendMessage(message: string, attachments: any[] = []) {
         conversationId: currentConversationId,
         model: selectedModel.value,
         attachments,
+        systemPrompt: settings.systemPrompt?.trim?.() || undefined,
       })
     })
 

@@ -61,9 +61,18 @@
                   </Select>
                 </div>
 
-               
-
-               
+                <!-- System Prompt -->
+                <div class="space-y-3 flex flex-col mt-4">
+                  <label class="text-sm font-medium gap-2" for="systemPrompt">System Prompt</label>
+                  <textarea
+                    id="systemPrompt"
+                    v-model="settings.systemPrompt"
+                    rows="3"
+                    placeholder="Optional instructions that will be sent to the model at the start of every chat"
+                    class="w-full px-3 py-2 rounded-md border border-border bg-background/20 backdrop-blur-xl focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                  ></textarea>
+                  <div class="text-xs text-muted-foreground">Leave empty to disable.</div>
+                </div>
               </div>
             </div>
 
@@ -328,6 +337,8 @@ import {
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { toast } from 'vue-sonner'
+import { computed, ref, watch, onMounted } from 'vue'
+import { useSettings } from '~/composables/useSettings'
 
 interface User {
   id: string
@@ -363,24 +374,12 @@ const tabs = [
   { id: 'account', label: 'Account', icon: 'lucide:user' },
 ]
 
-const settings = reactive({
-  theme: 'light',
-  language: 'en',
-  showFollowUp: true,
-  showCodeAnalyst: true,
-  emailNotifications: true,
-  pushNotifications: false,
-  soundNotifications: true,
-  preferredModel: 'gpt-4o',
-  responseStyle: 'balanced',
-  showModel: false,
-})
+const { settings } = useSettings()
 
 // Dialog states
 const showChangeNameDialog = ref(false)
 const showChangePasswordDialog = ref(false)
 
-// Form states
 const newName = ref('')
 const oldPassword = ref('')
 const newPassword = ref('')
@@ -388,17 +387,14 @@ const confirmPassword = ref('')
 const changingName = ref(false)
 const changingPassword = ref(false)
 
-// Computed properties
 const isPasswordFormValid = computed(() => {
   return oldPassword.value.trim() && 
          newPassword.value.length >= 8 && 
          newPassword.value === confirmPassword.value
 })
 
-// Background management
 const { availableBackgrounds, currentBackground, setBackground } = useBackground()
 
-// Debug background changes
 watch(currentBackground, (newValue) => {
   console.log('Background changed to:', newValue)
 })
@@ -486,39 +482,27 @@ watch(showChangePasswordDialog, (newValue) => {
   }
 })
 
-// Watch for settings changes and save to localStorage
-watchEffect(() => {
-  if (process.client) {
-    localStorage.setItem('ghazelle-settings', JSON.stringify(settings))
-  }
-})
-
-// Load settings from localStorage on mount
-onMounted(() => {
-  if (process.client) {
-    const saved = localStorage.getItem('ghazelle-settings')
-    if (saved) {
-      Object.assign(settings, JSON.parse(saved))
-    }
-  }
-})
-
 // ─────── Theme synchronization with global color mode ───────
 const colorMode = useColorMode()
 
 // initialize setting to current mode on mount (light/dark)
 onMounted(() => {
-  settings.theme = colorMode.value === 'dark' ? 'dark' : 'light'
+  // The useSettings composable now handles loading, but we still need to sync theme with colorMode
+  if (settings.theme !== colorMode.value) {
+    settings.theme = colorMode.value as 'light' | 'dark'
+  }
 })
 
 // when select changes -> update global color mode
 watch(() => settings.theme, (val) => {
-  colorMode.preference = val
+  if (val && colorMode.preference !== val) {
+    colorMode.preference = val
+  }
 })
 
 // keep select in sync when toggle button changes theme elsewhere
 watch(() => colorMode.value, (val) => {
-  if (settings.theme !== val) {
+  if (val && settings.theme !== val) {
     settings.theme = val as 'light' | 'dark'
   }
 })

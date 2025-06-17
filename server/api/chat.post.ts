@@ -34,11 +34,12 @@ const chatSchema = z.object({
     'gemini-2.5-pro',
     'gemini-2.0-flash',
     'gemini-2.0-flash-lite'
-  ]).default('gpt-4o-mini')
+  ]).default('gpt-4o-mini'),
+  systemPrompt: z.string().optional().nullable()
 })
 
 interface ChatMessage {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: string
 }
 
@@ -63,7 +64,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const body = await readBody(event)
-    const { message, conversationId, model, attachments } = chatSchema.parse(body)
+    const { message, conversationId, model, attachments, systemPrompt } = chatSchema.parse(body)
 
     const validationErr = validateIncomingAttachments(model, attachments as IncomingAttachment[])
     if (validationErr) {
@@ -107,7 +108,10 @@ export default defineEventHandler(async (event) => {
       content: msg.content
     }))
 
-    // If request contains image attachments, append them in vendor-specific format for supported models
+    if (systemPrompt && typeof systemPrompt === 'string' && systemPrompt.trim() !== '' && (model.startsWith('gpt-') || model.startsWith('llama-'))) {
+      chatMessages.unshift({ role: 'system', content: systemPrompt.trim() })
+    }
+
     if (attachments && attachments.length && !model.startsWith('claude-')) {
       const protocol = (event.node.req.headers['x-forwarded-proto'] as string) || 'http'
       const host = event.node.req.headers.host || 'localhost:3000'
@@ -310,8 +314,6 @@ export default defineEventHandler(async (event) => {
                 throw error
               }
 
-              // After the loop, check if the abort was signaled. The OpenAI SDK
-              // might not throw, so we ensure we catch it here.
               if (abortController.signal.aborted) {
                 throw new Error('Stream aborted by user action.')
               }
@@ -330,7 +332,7 @@ export default defineEventHandler(async (event) => {
                 apiKey: config.anthropicApiKey
               })
 
-              // Set max_tokens based on model capabilities
+              
               let maxTokens = 2048 // Default for older models
               if (model === 'claude-sonnet-4-20250514') {
                 maxTokens = 4096 // Claude Sonnet 4 can handle up to 64K, but we'll use 4K for reasonable response times
@@ -338,7 +340,7 @@ export default defineEventHandler(async (event) => {
                 maxTokens = 4096 // Claude Opus 4 can handle up to 32K, but we'll use 4K for reasonable response times
               }
 
-              // Build Anthropic messages with proper image blocks (base64 if local/non-https)
+    
               const anthropicMessages = await buildAnthropicMessages(chatMessages, attachments as IncomingAttachment[] | undefined, event)
 
               const startTime = Date.now()
@@ -347,6 +349,7 @@ export default defineEventHandler(async (event) => {
                 model,
                 max_tokens: maxTokens,
                 messages: anthropicMessages,
+                system: systemPrompt?.trim() || undefined,
                 stream: true
               }, {
                 signal: abortController.signal
@@ -379,7 +382,7 @@ export default defineEventHandler(async (event) => {
                         controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
                       }
                     } catch (e) {
-                      // Stream might be closed if client disconnected
+                     
                       if ((e as Error)?.message?.includes('closed')) {
                         console.log('🔌 Client stream closed, but continuing Anthropic generation in background')
                         clientDisconnected = true
@@ -423,18 +426,30 @@ export default defineEventHandler(async (event) => {
                 throw new Error('Missing Gemini API key')
               }
 
-              const googleMessages = await buildGeminiMessages(chatMessages, attachments as IncomingAttachment[] | undefined, event)
+              let googleMessages = await buildGeminiMessages(chatMessages, attachments as IncomingAttachment[] | undefined, event)
+
+              if (systemPrompt && systemPrompt.trim() !== '') {
+                googleMessages.unshift({ role: 'user', parts: [{ text: systemPrompt.trim() }] })
+              }
 
               const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`;
+
+              const requestBody: any = {
+                contents: googleMessages,
+                generationConfig: { maxOutputTokens: 2048, temperature: 0.9, topP: 0.95 }
+              }
+
+              if (systemPrompt && systemPrompt.trim()) {
+                requestBody.systemInstruction = {
+                  parts: [{ text: systemPrompt.trim() }]
+                }
+              }
 
               const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 signal: abortController.signal,
-                body: JSON.stringify({
-                  contents: googleMessages,
-                  generationConfig: { maxOutputTokens: 2048, temperature: 0.9, topP: 0.95 }
-                })
+                body: JSON.stringify(requestBody)
               })
 
               if (!response.ok || !response.body) {
@@ -656,7 +671,6 @@ export default defineEventHandler(async (event) => {
           }
           controller.close()
 
-          // Clean up our event listeners
           event.node.req.removeListener('close', handleReqClose)
           event.node.req.removeListener('aborted', handleReqAborted)
           event.node.req.removeListener('error', handleReqError)

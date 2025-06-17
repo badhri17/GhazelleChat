@@ -1,14 +1,10 @@
 import { IncomingAttachment } from '~/server/utils/attachments'
 
 interface ChatMessage {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: any
 }
 
-/**
- * Construct OpenAI chat.messages array, inlining images for Vision models.
- * Works for both text-only and multimodal GPT-4o.
- */
 export async function buildOpenAIMessages (
   chatMessages: ChatMessage[],
   attachments: IncomingAttachment[] | undefined,

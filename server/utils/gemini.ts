@@ -1,7 +1,7 @@
 import { IncomingAttachment } from '~/server/utils/attachments'
 
 interface ChatMessage {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: any
 }
 
@@ -44,7 +44,6 @@ export async function buildGeminiMessages (
       const baseUrl = `${protocol}://${host}`
 
       for (const att of attachments) {
-        // ────── Handle images (inline base64) ──────
         if (att.mimeType.startsWith('image/')) {
           try {
             const filePath = (() => {
