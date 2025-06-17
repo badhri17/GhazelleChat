@@ -1,50 +1,35 @@
 <template>
-  <SidebarProvider>
-    <div class="flex min-h-screen w-full bg-background">
-      <!-- Sidebar with conversations -->
-      <ConversationSidebar :conversations="conversations" :user="user" />
+  <!-- Sticky Header -->
+  <ChatHeader 
+    title="New Conversation"
+    v-model:selected-model="selectedModel"
+  />
 
-      <!-- Main Chat Area -->
-      <SidebarInset>
-        <!-- Sticky Header -->
-        <ChatHeader 
-          title="New Conversation"
-          v-model:selected-model="selectedModel"
-        />
-
-        <!-- Content -->
-        <div class="flex flex-col h-full">
-          <div class="flex-1 overflow-hidden">
-            <ChatInterface 
-              ref="chatInterfaceRef"
-              :conversation-id="null"
-              :user="user"
-              v-model="selectedModel"
-              @conversation-created="handleConversationCreated"
-            />
-          </div>
-        </div>
-      </SidebarInset>
-
-      <!-- Chat Input -->
-      <ChatInput 
-        v-model="inputMessage"
-        :current-model="selectedModel"
-        :is-loading="isLoading"
-        :is-streaming="isStreaming"
-        @send-message="handleSendMessage"
-        @stop-streaming="handleStopStreaming"
+  <!-- Content -->
+  <div class="flex flex-col h-full">
+    <div class="flex-1 overflow-hidden">
+      <ChatInterface 
+        ref="chatInterfaceRef"
+        :conversation-id="null"
+        :user="user"
+        v-model="selectedModel"
+        @conversation-created="handleConversationCreated"
       />
     </div>
-  </SidebarProvider>
+  </div>
+
+  <!-- Chat Input -->
+  <ChatInput 
+    v-model="inputMessage"
+    :current-model="selectedModel"
+    :is-loading="isLoading"
+    :is-streaming="isStreaming"
+    @send-message="handleSendMessage"
+    @stop-streaming="handleStopStreaming"
+  />
 </template>
 
 <script setup lang="ts">
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from '@/components/ui/sidebar'
 import ModelSelector from '@/components/ModelSelector.vue'
 import ChatHeader from '@/components/ChatHeader.vue'
 
@@ -62,19 +47,14 @@ interface Conversation {
 }
 
 definePageMeta({
-  middleware: 'auth'
+  middleware: 'auth',
+  layout: 'chat'
 })
 
-// Fetch user and conversations data
-const { data: userData } = await useFetch('/api/auth/me')
-const { data: conversationsData } = await useFetch('/api/conversations')
-
-const user = userData.value?.data?.user!
-const conversations = ref(conversationsData.value?.conversations?.map((conv: any) => ({
-  ...conv,
-  createdAt: new Date(conv.createdAt),
-  updatedAt: new Date(conv.updatedAt)
-})) || [])
+// Get user and conversations from layout
+const user = inject<User>('user')!
+const conversations = inject<Ref<Conversation[]>>('conversations')!
+const refreshConversations = inject<() => Promise<void>>('refreshConversations')!
 
 const chatInterfaceRef = ref()
 const inputMessage = ref('')

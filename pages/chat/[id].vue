@@ -1,54 +1,35 @@
 <template>
-  <SidebarProvider>
-    <div class="flex min-h-screen w-full bg-background">
-      <!-- Sidebar with conversations -->
-      <ConversationSidebar 
-        :conversations="conversations" 
-        :user="user" 
-        :current-id="conversationId"
-      />
+  <!-- Sticky Header -->
+  <ChatHeader 
+    :title="conversation?.title || 'Chat'"
+    v-model:selected-model="selectedModel"
+  />
 
-      <!-- Main Chat Area -->
-      <SidebarInset>
-        <!-- Sticky Header -->
-        <ChatHeader 
-          :title="conversation?.title || 'Chat'"
-          v-model:selected-model="selectedModel"
-        />
-
-        <!-- Content -->
-        <div class="flex flex-col h-full">
-          <div class="flex-1 overflow-hidden">
-            <ChatInterface 
-              ref="chatInterfaceRef"
-              :conversation-id="conversationId"
-              :user="user"
-              v-model="selectedModel"
-              @conversation-created="handleConversationCreated"
-            />
-          </div>
-        </div>
-      </SidebarInset>
-
-      <!-- Chat Input -->
-      <ChatInput 
-        v-model="inputMessage"
-        :current-model="selectedModel"
-        :is-loading="isLoading"
-        :is-streaming="isStreaming"
-        @send-message="handleSendMessage"
-        @stop-streaming="handleStopStreaming"
+  <!-- Content -->
+  <div class="flex flex-col h-full">
+    <div class="flex-1 overflow-hidden">
+      <ChatInterface 
+        ref="chatInterfaceRef"
+        :conversation-id="conversationId"
+        :user="user"
+        v-model="selectedModel"
+        @conversation-created="handleConversationCreated"
       />
     </div>
-  </SidebarProvider>
+  </div>
+
+  <!-- Chat Input -->
+  <ChatInput 
+    v-model="inputMessage"
+    :current-model="selectedModel"
+    :is-loading="isLoading"
+    :is-streaming="isStreaming"
+    @send-message="handleSendMessage"
+    @stop-streaming="handleStopStreaming"
+  />
 </template>
 
 <script setup lang="ts">
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from '@/components/ui/sidebar'
 import ModelSelector from '@/components/ModelSelector.vue'
 import ChatHeader from '@/components/ChatHeader.vue'
 
@@ -66,28 +47,17 @@ interface Conversation {
 }
 
 definePageMeta({
-  middleware: 'auth'
+  middleware: 'auth',
+  layout: 'chat'
 })
 
 const route = useRoute()
 const conversationId = route.params.id as string
 
-// Fetch user and conversations (server-side for first paint)
-const { data: userData } = await useFetch('/api/auth/me')
-const { data: conversationsData } = await useFetch('/api/conversations')
-
-const user = userData.value?.data?.user!
-
-const conversations = ref<Conversation[]>( (conversationsData.value?.conversations || []).map((conv: any)=>({
-  ...conv,
-  createdAt: new Date(conv.createdAt),
-  updatedAt: new Date(conv.updatedAt)
-})).sort((a: Conversation,b: Conversation)=> +new Date(b.updatedAt)- +new Date(a.updatedAt)))
-
-// Optionally refresh after mount for latest order/titles
-if (process.client) {
-  fetchConversations()
-}
+// Get user and conversations from layout
+const user = inject<User>('user')!
+const conversations = inject<Ref<Conversation[]>>('conversations')!
+const refreshConversations = inject<() => Promise<void>>('refreshConversations')!
 
 // Find current conversation or create a placeholder
 const conversation = computed(() => {
@@ -126,7 +96,7 @@ watch(() => chatInterfaceRef.value?.isStreaming, (newVal, oldVal) => {
 
   // When streaming finishes (oldVal true -> newVal false), refresh conversations list
   if (oldVal && !newVal) {
-    fetchConversations()
+    refreshConversations()
   }
 }, { deep: true })
 
@@ -171,23 +141,7 @@ function handleStopStreaming() {
   }
 }
 
-async function fetchConversations() {
-  try {
-    const { conversations: convs } = await $fetch('/api/conversations')
-    conversations.value = (convs || []).map((conv: any) => ({
-      ...conv,
-      createdAt: new Date(conv.createdAt),
-      updatedAt: new Date(conv.updatedAt)
-    })).sort((a: Conversation, b: Conversation) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
-  } catch (error: any) {
-    if (process.client && error?.status === 401) {
-      console.warn('🔑 Session expired while refreshing conversations. Redirecting to login.')
-      navigateTo('/login')
-    } else {
-      console.error('Failed to fetch conversations:', error)
-    }
-  }
-}
+
 
 // Set page title based on conversation
 useHead({

@@ -2,7 +2,9 @@
   <div>
     <img :src="getCurrentBackgroundPath" class="fixed inset-0 w-full h-full object-cover -z-10" />
     <div class="min-h-screen bg-transparent">
-      <NuxtPage />
+      <NuxtLayout>
+        <NuxtPage />
+      </NuxtLayout>
       <Toaster 
         position="top-right"
         :close-button="false"

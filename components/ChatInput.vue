@@ -28,11 +28,11 @@
 
           <Button
             type="submit"
-            :disabled="(!inputMessage.trim() && attachments.length === 0) && !isStreaming && !isLoading"
+            :disabled="(!(inputMessage?.trim()) && attachments.length === 0) && !isStreaming && !isLoading"
             size="icon"
             :class="[
               'h-9 w-9 text-primary-foreground rounded-xl transition-all duration-300 flex-shrink-0 relative cursor-pointer',
-              (!inputMessage.trim() && attachments.length === 0 && !isStreaming && !isLoading)
+              (!(inputMessage?.trim()) && attachments.length === 0 && !isStreaming && !isLoading)
                 ? 'bg-muted text-muted-foreground cursor-not-allowed'
                 : 'bg-primary hover:bg-primary/90 glow-button'
             ]"
@@ -151,16 +151,16 @@ function handleSendMessage() {
   console.log('🎯 ChatInput handleSendMessage called', {
     isStreaming: props.isStreaming,
     isLoading: props.isLoading,
-    hasMessage: !!inputMessage.value.trim()
+    hasMessage: !!(inputMessage.value?.trim())
   })
   
   if (props.isStreaming) {
     console.log('🛑 Emitting stop-streaming event')
     // If streaming, emit stop event instead
     emit('stop-streaming')
-  } else if ((inputMessage.value.trim() || attachments.value.length) && !props.isLoading) {
+  } else if ((inputMessage.value?.trim() || attachments.value.length) && !props.isLoading) {
     console.log('📤 Emitting send-message event')
-    const messageText = inputMessage.value.trim()
+    const messageText = inputMessage.value?.trim() || ''
     emit('send-message', messageText, attachments.value)
     // clear locals
     inputMessage.value = ''

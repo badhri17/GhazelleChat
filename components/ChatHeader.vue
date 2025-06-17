@@ -1,7 +1,7 @@
 <template>
   <header class="sticky top-0 z-40 border-b px-4 py-3 flex justify-between items-center backdrop-blur-sm border-none">
     <div class="flex items-center gap-2">
-      <SidebarTrigger />
+      <SidebarTrigger v-if="hasSidebarContext" />
       <h2 class="font-semibold mr-2 text-base">
         {{ title }}
       </h2>
@@ -88,8 +88,24 @@ const emit = defineEmits(['update:selectedModel'])
 
 const searchOpen = ref(false)
 
-const sidebar = useSidebar()
-const showNewChatButton = computed(() => sidebar?.state.value === 'collapsed')
+const hasSidebarContext = computed(() => {
+  try {
+    useSidebar()
+    return true
+  } catch {
+    return false
+  }
+})
+
+const showNewChatButton = computed(() => {
+  try {
+    const sidebar = useSidebar()
+    return sidebar?.state.value === 'collapsed'
+  } catch {
+    // Fallback when sidebar context is not available
+    return false
+  }
+})
 const isMac = computed(() => process.client && /Mac|iPod|iPhone|iPad/.test(navigator.platform))
 const shortcutNewChat = computed(() => isMac.value ? '⌘⇧O' : 'Ctrl+Shift+O')
 const shortcutSearch = computed(() => isMac.value ? '⌘K' : 'Ctrl+K')
