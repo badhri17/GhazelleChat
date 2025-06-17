@@ -9,7 +9,26 @@
     </div>
 
     <div class="flex items-center gap-4">
-      <!-- Search functionality -->
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger v-if="showNewChatButton" as-child>
+            <Button
+              @click="startNewChat"
+              variant="ghost"
+              size="sm"
+              class="h-10 w-10 p-0"
+            >
+              <Icon name="lucide:plus" class="w-5 h-5 text-xl" />
+              <span class="sr-only">New chat</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>New chat
+              <kbd class="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">{{ shortcutNewChat }}</kbd>
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger as-child>
@@ -28,7 +47,7 @@
               Search conversations
               <kbd
                 class="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100"
-              >⌘K</kbd>
+              >{{ shortcutSearch }}</kbd>
             </p>
           </TooltipContent>
         </Tooltip>
@@ -37,8 +56,6 @@
       <ThemeToggle />
     </div>
   </header>
-
-  <!-- Search Dialog -->
   <SearchDialog v-model:open="searchOpen" />
 </template>
 
@@ -56,7 +73,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import SearchDialog from '@/components/SearchDialog.vue'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useSidebar } from '@/components/ui/sidebar/utils'
+import { useEventListener } from '@vueuse/core'
 
 interface Props {
   title: string
@@ -69,7 +88,25 @@ const emit = defineEmits(['update:selectedModel'])
 
 const searchOpen = ref(false)
 
+const sidebar = useSidebar()
+const showNewChatButton = computed(() => sidebar?.state.value === 'collapsed')
+const isMac = computed(() => process.client && /Mac|iPod|iPhone|iPad/.test(navigator.platform))
+const shortcutNewChat = computed(() => isMac.value ? '⌘⇧O' : 'Ctrl+Shift+O')
+const shortcutSearch = computed(() => isMac.value ? '⌘K' : 'Ctrl+K')
+
 function openSearch() {
   searchOpen.value = true
 }
+
+function startNewChat() {
+  navigateTo('/chat')
+}
+
+
+useEventListener('keydown', (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
+    e.preventDefault()
+    startNewChat()
+  }
+})
 </script> 

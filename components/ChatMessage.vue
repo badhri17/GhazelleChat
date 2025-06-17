@@ -6,8 +6,8 @@
     <div :class="cn(
       'max-w-[100%] rounded-lg p-3 relative group backdrop-blur-xl border-none bg-transparent',
       message.role === 'user' 
-        ? 'bg-primary text-primary-foreground ml-12  backdrop-blur-4xl border-none' 
-        : 'bg-background/20 border-none w-full',
+        ? 'bg-white dark:bg-primary text-primary-foreground ml-12  backdrop-blur-4xl border-none' 
+        : 'dark:bg-background/20 bg-background/40 border-none w-full',
       isStreaming && 'mb-10'
     )"
     
@@ -167,6 +167,7 @@ const renderedContent = computed(() => {
       .replace(/\n/g, '<br>')
   } else {
     // For assistant messages, parse markdown
+    console.log(props.message.content)
     return parseMarkdown(props.message.content)
   }
 })

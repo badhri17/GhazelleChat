@@ -1,14 +1,12 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden relative">
 
-
-    <!-- Messages Area -->
     <ScrollArea class="flex-1 p-4 min-h-0">
       <div class="space-y-4 max-w-4xl mx-auto pb-24">
         <div v-if="messages.length === 0" class="text-center py-12">
-          <Icon icon="lucide:message-circle" class="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+          <Icon icon="lucide:message-circle" class="w-12 h-12 mx-auto text-foreground mb-4" />
           <h3 class="text-lg font-medium mb-2">Start a conversation</h3>
-          <p class="text-muted-foreground">
+          <p class="text-foreground">
             Ask me anything and I'll help you with information, creative tasks, or problem-solving.
           </p>
         </div>
@@ -231,11 +229,14 @@ async function sendMessage(message: string, attachments: any[] = []) {
               createdAt: new Date(),
               status: 'streaming'
             })
+            nextTick(() => {
+              scrollToBottom('smooth')
+            })
           } else if (data.content) {
             const msgIdx = messages.value.findIndex(m => m.id === assistantMessageId)
             if (msgIdx !== -1) {
               messages.value[msgIdx].content += data.content
-              nextTick(scrollToBottom)
+              // No further automatic scrolling; user can manually scroll if desired
             }
           }
           
@@ -281,8 +282,6 @@ function scrollToBottom(behavior: 'smooth' | 'auto' = 'auto') {
     })
   }
 }
-
-// Auto-focus textarea on mount
 onMounted(() => {
   nextTick(() => {
     scrollToBottom('auto')

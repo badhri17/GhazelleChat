@@ -1,6 +1,6 @@
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="sm:max-w-[750px] max-h-[80vh] overflow-hidden backdrop-blur-xl">
+    <DialogContent class="sm:max-w-[750px] max-h-[80vh] overflow-hidden bg-background/90 dark:bg-background/50 backdrop-blur-xl">
       <DialogHeader>
         <DialogTitle class="text-xl font-semibold">Settings</DialogTitle>
       </DialogHeader>
@@ -161,10 +161,10 @@
                 </div>
 
                 <!-- Delete All -->
-                <div class="flex items-center justify-between py-3 transition-colors duration-200 hover:bg-red-50 dark:hover:bg-red-950/20">
+                <div class="flex items-center justify-between py-3 pr-2 transition-colors duration-200 hover:bg-red-50 dark:hover:bg-red-950/20">
                   <div>
                     <div class="text-sm font-medium">Delete all chats</div>
-                    <div class="text-xs text-muted-foreground text-red-600">This action cannot be undone</div>
+                    <div class="text-xs  text-red-600">This action cannot be undone</div>
                   </div>
                   <Button variant="destructive" size="sm" @click="showComingSoonToast" class="transition-all duration-200 hover:scale-105">
                     <Icon name="lucide:trash-2" class="w-4 h-4 mr-2" />

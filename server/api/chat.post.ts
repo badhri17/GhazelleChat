@@ -95,6 +95,9 @@ export default defineEventHandler(async (event) => {
       status: 'complete',
       createdAt: new Date()
     })
+    await db.update(conversations)
+      .set({ updatedAt: new Date() })
+      .where(eq(conversations.id, currentConversationId))
 
     if (attachments && attachments.length > 0) {
       await linkAttachmentsToMessage(userMessageId, attachments as IncomingAttachment[])

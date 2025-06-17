@@ -3,7 +3,11 @@
     <SidebarHeader>
               <div class="flex items-center gap-2 px-4 py-4 justify-center">
           <NuxtLink to="/" class="flex items-center hover:opacity-80 transition-opacity">
-            <img src="@/assets/images/logo/logo1.png" alt="GhazelleChat" class="h-14 w-33 " />
+            <img 
+              :src="logoSrc" 
+              alt="GhazelleChat" 
+              class="h-14 w-33" 
+            />
           </NuxtLink>
         </div>
     </SidebarHeader>
@@ -26,7 +30,7 @@
               <span class="text-primary">Click "New Chat" above to get started!</span>
             </div>
             
-            <SidebarMenuItem v-for="conversation in conversations" :key="conversation.id">
+            <SidebarMenuItem v-for="conversation in sortedConversations" :key="conversation.id">
               <SidebarMenuButton 
                 @click="() => navigateTo(`/chat/${conversation.id}`)"
                 :data-active="currentId === conversation.id"
@@ -67,30 +71,22 @@
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-56 backdrop-blur-xl bg-background/50">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuLabel>Menu</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem class="cursor-pointer">
-              <Icon name="lucide:user" class="w-4 h-4 mr-2" />
-              Account
-            </DropdownMenuItem>
-            <DropdownMenuItem class="cursor-pointer">
-              <Icon name="lucide:credit-card" class="w-4 h-4 mr-2" />
-              Billing
-            </DropdownMenuItem>
+            <!-- Settings -->
             <DropdownMenuItem @click="openSettings" class="cursor-pointer">
               <Icon name="lucide:settings" class="w-4 h-4 mr-2" />
               Settings
             </DropdownMenuItem>
-            <DropdownMenuItem class="cursor-pointer">
-              <Icon name="lucide:bell" class="w-4 h-4 mr-2" />
-              Notifications
+
+            <!-- GitHub link -->
+            <DropdownMenuItem class="cursor-pointer" @click="openGithub">
+              <Icon name="lucide:github" class="w-4 h-4 mr-2" />
+              GitHub
             </DropdownMenuItem>
+
             <DropdownMenuSeparator />
-            <DropdownMenuItem class="cursor-pointer">
-              <Icon name="lucide:crown" class="w-4 h-4 mr-2" />
-              Upgrade to Pro
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            <!-- Logout -->
             <DropdownMenuItem @click="logout" class="cursor-pointer text-red-600 focus:text-red-600">
               <Icon name="lucide:log-out" class="w-4 h-4 mr-2" />
               Log out
@@ -101,7 +97,6 @@
     </SidebarFooter>
   </Sidebar>
 
-  <!-- Settings Dialog Component -->
   <SettingsDialog 
     v-model:open="settingsOpen" 
     :user="user" 
@@ -131,7 +126,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-
+import { useColorMode, useCookie } from '#imports';
+import { computed } from 'vue';
+import darkLogo from '@/assets/images/logo/logo1.png';
+import lightLogo from '@/assets/images/logo/logo2.png';
 
 interface User {
   id: string
@@ -152,9 +150,18 @@ interface Props {
   currentId?: string
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const settingsOpen = ref(false)
+const colorMode = useColorMode();
+
+const themeCookie = useCookie<string>('nuxt_color_mode');
+const currentTheme = computed(() => themeCookie.value || colorMode.preference || colorMode.value);
+
+const logoSrc = computed(() => (currentTheme.value === 'dark' ? darkLogo : lightLogo));
+const sortedConversations = computed(() => {
+  return [...(props.conversations || [])].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
+})
 
 function openSettings() {
   settingsOpen.value = true
@@ -184,6 +191,12 @@ function formatDate(date: Date | string) {
     return d.toLocaleDateString([], { weekday: 'short' })
   } else {
     return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  }
+}
+
+function openGithub() {
+  if (process.client) {
+    window.open('https://github.com/your-repo', '_blank')
   }
 }
 </script> 

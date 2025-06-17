@@ -72,16 +72,22 @@ definePageMeta({
 const route = useRoute()
 const conversationId = route.params.id as string
 
-// Fetch user and conversations
+// Fetch user and conversations (server-side for first paint)
 const { data: userData } = await useFetch('/api/auth/me')
 const { data: conversationsData } = await useFetch('/api/conversations')
 
 const user = userData.value?.data?.user!
-const conversations = ref(conversationsData.value?.conversations?.map((conv: any) => ({
+
+const conversations = ref<Conversation[]>( (conversationsData.value?.conversations || []).map((conv: any)=>({
   ...conv,
   createdAt: new Date(conv.createdAt),
   updatedAt: new Date(conv.updatedAt)
-})) || [])
+})).sort((a: Conversation,b: Conversation)=> +new Date(b.updatedAt)- +new Date(a.updatedAt)))
+
+// Optionally refresh after mount for latest order/titles
+if (process.client) {
+  fetchConversations()
+}
 
 // Find current conversation or create a placeholder
 const conversation = computed(() => {
@@ -113,9 +119,14 @@ watch(() => chatInterfaceRef.value?.isLoading, (newVal) => {
 }, { deep: true })
 
 // Watch for streaming state changes from ChatInterface
-watch(() => chatInterfaceRef.value?.isStreaming, (newVal) => {
+watch(() => chatInterfaceRef.value?.isStreaming, (newVal, oldVal) => {
   if (newVal !== undefined) {
     isStreaming.value = newVal
+  }
+
+  // When streaming finishes (oldVal true -> newVal false), refresh conversations list
+  if (oldVal && !newVal) {
+    fetchConversations()
   }
 }, { deep: true })
 
@@ -134,6 +145,22 @@ function handleSendMessage(message: string, attachments: any[] = []) {
   if (chatInterfaceRef.value && (message.trim() || attachments.length)) {
     chatInterfaceRef.value.sendMessage(message, attachments)
     inputMessage.value = ''
+
+    // Locally bump the current conversation to the top for instant re-ordering
+    const idx = conversations.value.findIndex(c => c.id === conversationId)
+    if (idx !== -1) {
+      conversations.value[idx].updatedAt = new Date()
+    } else {
+      // If conversation not in list yet (e.g., first reply), add placeholder
+      conversations.value.push({
+        id: conversationId,
+        title: conversation.value.title ?? 'Chat',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      } as any)
+    }
+    // Re-sort
+    conversations.value.sort((a: Conversation, b: Conversation) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
   }
 }
 
@@ -144,7 +171,23 @@ function handleStopStreaming() {
   }
 }
 
-
+async function fetchConversations() {
+  try {
+    const { conversations: convs } = await $fetch('/api/conversations')
+    conversations.value = (convs || []).map((conv: any) => ({
+      ...conv,
+      createdAt: new Date(conv.createdAt),
+      updatedAt: new Date(conv.updatedAt)
+    })).sort((a: Conversation, b: Conversation) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
+  } catch (error: any) {
+    if (process.client && error?.status === 401) {
+      console.warn('🔑 Session expired while refreshing conversations. Redirecting to login.')
+      navigateTo('/login')
+    } else {
+      console.error('Failed to fetch conversations:', error)
+    }
+  }
+}
 
 // Set page title based on conversation
 useHead({
