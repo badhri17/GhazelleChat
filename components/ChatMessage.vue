@@ -19,10 +19,7 @@
       >
         {{ message.model }}
       </div>
-
-      <!-- USER ATTACHMENT PREVIEWS -->
       <div v-if="imageAttachments.length || pdfAttachments.length" class="mb-2 flex flex-wrap gap-2">
-        <!-- Image thumbnails -->
         <a
           v-for="att in imageAttachments"
           :key="att.id"
@@ -36,25 +33,20 @@
             :alt="att.fileName"
             class="max-h-48 rounded-lg object-cover cursor-pointer hover:opacity-90 transition"
             @load="onImageLoad"
+            loading="lazy"
+            decoding="async"
           />
         </a>
-
-        <!-- PDF previews -->
         <a
           v-for="att in pdfAttachments"
           :key="att.id"
           :href="att.url"
           target="_blank"
           rel="noopener noreferrer"
-          class="relative block group"
+          class="w-40 h-48 rounded border flex flex-col items-center justify-center gap-2 bg-background/30 hover:bg-background/50 transition text-center text-xs p-2 cursor-pointer"
         >
-          <object
-            :data="att.url"
-            type="application/pdf"
-            class="w-40 h-48 rounded border cursor-pointer group-hover:opacity-90 transition" />
-          <div class="absolute bottom-1 left-1 right-1 text-xs text-center bg-black/60 hover:bg-black/80 text-white rounded px-1 py-0.5 truncate cursor-pointer transition">
-            {{ att.fileName }}
-          </div>
+          <Icon name="lucide:file-text" class="w-8 h-8 text-muted-foreground text-2xl" />
+          <span class="truncate w-full">{{ att.fileName }}</span>
         </a>
       </div>
 
@@ -117,8 +109,9 @@
 <script setup lang="ts">
 import { cn } from '~/lib/utils'
 import { toast } from 'vue-sonner'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { marked } from 'marked'
+import { useDebounceFn } from '@vueuse/core'
 
 const emit = defineEmits(['image-loaded'])
 
@@ -156,21 +149,31 @@ const pdfAttachments = computed(() => {
   return props.message.attachments.filter(att => att.mimeType === 'application/pdf')
 })
 
-// Computed property to render markdown content
-const renderedContent = computed(() => {
+const renderedContent = ref('')
+
+function renderNow() {
   if (props.message.role === 'user') {
-    // For user messages, just escape HTML and preserve line breaks
-    return props.message.content
+    renderedContent.value = props.message.content
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/\n/g, '<br>')
   } else {
-    // For assistant messages, parse markdown
-    console.log(props.message.content)
-    return parseMarkdown(props.message.content)
+    renderedContent.value = parseMarkdown(props.message.content)
   }
-})
+}
+const throttledRender = useDebounceFn(renderNow, 16, { maxWait: 100 })
+watch(
+  () => props.message.content,
+  () => {
+    if (props.isStreaming) {
+      throttledRender()
+    } else {
+      renderNow()
+    }
+  },
+  { immediate: true }
+)
 
 function formatTime(date: Date) {
   return date.toLocaleTimeString([], { 
