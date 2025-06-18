@@ -33,6 +33,22 @@ export default defineNuxtConfig({
     "~/assets/css/highlight.css",
     "~/assets/css/general.css",
   ],
+  app: {
+    head: {
+      link: [
+        // root fallback
+        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
+        // standard PNG favicons
+        { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/favicon/favicon-32x32.png' },
+        { rel: 'icon', type: 'image/png', sizes: '16x16', href: '/favicon/favicon-16x16.png' },
+        // Apple touch icon
+        { rel: 'apple-touch-icon', sizes: '180x180', href: '/favicon/apple-touch-icon.png' },
+        // Android/Chrome icons
+        { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/favicon/android-chrome-192x192.png' },
+        { rel: 'icon', type: 'image/png', sizes: '512x512', href: '/favicon/android-chrome-512x512.png' },
+      ]
+    }
+  },
   shadcn: {
     prefix: "",
     /**
