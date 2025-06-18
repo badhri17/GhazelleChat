@@ -30,10 +30,14 @@
           {{ groupHeading }}
         </div>
         <div
-          v-for="conversation in listItems"
+          v-for="(conversation, idx) in listItems"
           :key="conversation.id"
+          :data-result-index="idx"
           @click="selectConversation(conversation.id)"
-          class="flex cursor-pointer items-center gap-3 rounded-md p-3 hover:bg-accent"
+          :class="[
+            'flex cursor-pointer items-center gap-3 rounded-md p-3 hover:bg-accent',
+            idx === selectedIndex ? 'bg-accent' : ''
+          ]"
         >
           <Icon
             name="lucide:message-circle"
@@ -91,6 +95,16 @@ const loading = ref(false);
 const listItems = ref<Conversation[]>([]);
 const groupHeading = ref('Recent Conversations');
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const selectedIndex = ref(-1);
+
+function toDate(val: string | number): Date {
+  const num = typeof val === 'string' ? Number(val) : val;
+  if (!Number.isNaN(num) && num < 1e12) {
+    // seconds -> ms
+    return new Date(num * 1000);
+  }
+  return new Date(val as any);
+}
 
 async function fetchConversations() {
   try {
@@ -100,8 +114,8 @@ async function fetchConversations() {
       data?.conversations?.map((conv: any) => ({
         id: conv.id,
         title: conv.title,
-        createdAt: new Date(conv.createdAt),
-        updatedAt: new Date(conv.updatedAt),
+        createdAt: toDate(conv.createdAt),
+        updatedAt: toDate(conv.updatedAt),
       })) || [];
   } catch (error) {
     console.error("Failed to fetch conversations:", error);
@@ -148,8 +162,8 @@ watch(searchQuery, (q) => {
       listItems.value = (data?.conversations || []).map((conv: any) => ({
         id: conv.id,
         title: conv.title,
-        createdAt: new Date(conv.createdAt),
-        updatedAt: new Date(conv.updatedAt),
+        createdAt: toDate(conv.createdAt),
+        updatedAt: toDate(conv.updatedAt),
       }));
     } catch (e) {
       console.error("Search error", e);
@@ -204,27 +218,58 @@ function formatRelativeTime(date: Date | string) {
     return `${months}mo`;
   }
 }
-
-// Clear search when dialog closes
 watch(open, (isOpen) => {
   if (!isOpen) {
     searchQuery.value = "";
   }
 });
 
-// Add keyboard shortcut (Ctrl/Cmd + K)
-onMounted(() => {
-  const handleKeydown = (e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-      e.preventDefault();
-      open.value = true;
-    }
-  };
+watch([open, listItems], ([isOpen]) => {
+  if (isOpen && listItems.value.length) {
+    selectedIndex.value = 0;
+  } else {
+    selectedIndex.value = -1;
+  }
+});
 
-  document.addEventListener("keydown", handleKeydown);
-
-  onUnmounted(() => {
-    document.removeEventListener("keydown", handleKeydown);
+// Ensure highlighted row is visible
+watch(selectedIndex, () => {
+  nextTick(() => {
+    const el = document.querySelector(`[data-result-index="${selectedIndex.value}"]`) as HTMLElement | null;
+    if (el) el.scrollIntoView({ block: "nearest" });
   });
+});
+
+function moveSelection(dir: 1 | -1) {
+  if (!open.value || listItems.value.length === 0) return;
+  if (selectedIndex.value === -1) selectedIndex.value = 0;
+  else {
+    const len = listItems.value.length;
+    selectedIndex.value = (selectedIndex.value + dir + len) % len;
+  }
+}
+
+function handleNavKey(e: KeyboardEvent) {
+  if (!open.value) return;
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    moveSelection(1);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    moveSelection(-1);
+  } else if (e.key === "Enter") {
+    if (selectedIndex.value >= 0 && selectedIndex.value < listItems.value.length) {
+      e.preventDefault();
+      selectConversation(listItems.value[selectedIndex.value].id);
+    }
+  }
+}
+
+onMounted(() => {
+  document.addEventListener("keydown", handleNavKey);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("keydown", handleNavKey);
 });
 </script>
