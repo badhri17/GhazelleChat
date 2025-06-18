@@ -3,12 +3,12 @@
 
     <ScrollArea class="flex-1 p-4 min-h-0">
       <div class="space-y-4 max-w-4xl mx-auto pb-24">
-        <div v-if="messages.length === 0" class="text-center py-12">
-          <Icon icon="lucide:message-circle" class="w-12 h-12 mx-auto text-foreground mb-4" />
-          <h3 class="text-lg font-medium mb-2">Start a conversation</h3>
+        <div v-if="messages.length === 0 && initializing" class="text-center py-12">
+          <!-- <Icon icon="lucide:message-circle" class="w-12 h-12 mx-auto text-foreground mb-4" />
+          <h3 class="text-lg font-medium mb-2">Starting up...</h3>
           <p class="text-foreground">
-            Ask me anything and I'll help you with information, creative tasks, or problem-solving.
-          </p>
+            Please wait while we load your conversation history.
+          </p> -->
         </div>
 
         <ChatMessage
@@ -82,6 +82,7 @@ const inputMessage = ref('')
 const messages = ref<Message[]>([])
 const isLoading = ref(false)
 const isStreaming = ref(false)
+const initializing = ref(true)
 const textareaRef = ref()
 
 const pollingInterval = ref<NodeJS.Timeout | null>(null)
@@ -108,6 +109,7 @@ async function loadMessages(conversationId: string) {
     nextTick(() => {
       scrollToBottom('auto')
     })
+    initializing.value = false
   } catch (error: any) {
     if (error?.status === 401) {
       console.warn('🔑 Session expired while loading messages. Redirecting to login.')
@@ -115,6 +117,7 @@ async function loadMessages(conversationId: string) {
     } else {
       console.error('Failed to load messages:', error)
     }
+    initializing.value = false
   }
 }
 
@@ -319,11 +322,13 @@ if (process.client) {
     () => props.conversationId,
     async (newId) => {
       if (newId) {
+        initializing.value = true
         await loadMessages(newId)
         startPollingForStreaming()
       } else {
         messages.value = []
         stopPolling()
+        initializing.value = false
       }
     },
     { immediate: true }
