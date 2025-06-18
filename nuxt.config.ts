@@ -21,10 +21,7 @@ export default defineNuxtConfig({
       hmr: {
         host: "localhost",
       },
-      allowedHosts: [
-        ".ngrok-free.app",
-        "localhost",
-      ],
+      allowedHosts: [".ngrok-free.app", "localhost"],
     },
     plugins: [
       // @ts-ignore
@@ -37,14 +34,43 @@ export default defineNuxtConfig({
     "~/assets/css/general.css",
   ],
   shadcn: {
-    /**
-     * Prefix for all the imported component
-     */
     prefix: "",
     /**
      * Directory that the component lives in.
      * @default "./components/ui"
      */
     componentDir: "./components/ui",
+  },
+  nitro: {
+    hooks: {
+      'compiled': (nitro) => {
+        // @ts-ignore
+        if (nitro.options.preset === 'node-server' || nitro.options.preset === 'node') {
+          const fs = require('node:fs')
+          const path = require('node:path')
+          const arch = process.arch
+          const platform = process.platform
+          
+          const libsqlNodeModulesDir = path.join(nitro.options.workspaceDir, 'node_modules', '@libsql');
+          if (!fs.existsSync(libsqlNodeModulesDir)) {
+            return;
+          }
+
+          const files = fs.readdirSync(libsqlNodeModulesDir);
+          const nativePackageDirName = files.find((file: string) => file.includes(platform) && file.includes(arch));
+
+          if (nativePackageDirName) {
+            const srcDir = path.join(libsqlNodeModulesDir, nativePackageDirName);
+            const destDir = path.join(nitro.options.output.serverDir, 'node_modules', '@libsql', nativePackageDirName);
+            
+            if (fs.existsSync(srcDir)) {
+              console.log(`Copying native dependency ${nativePackageDirName} to build output...`);
+              fs.mkdirSync(destDir, { recursive: true });
+              fs.cpSync(srcDir, destDir, { recursive: true });
+            }
+          }
+        }
+      }
+    }
   },
 });

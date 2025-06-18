@@ -16,7 +16,7 @@
       <SidebarGroup v-if="user">
         <div class="p-2 pb-2">
           <Button @click="() => navigateTo('/chat')" class="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-xs  " :size="'sm'">
-            <Icon name="lucide:plus" class="w-4 h-4 mr-2" />
+            <Plus class="w-4 h-4 mr-2" />
             New Chat
           </Button>
         </div>
@@ -36,7 +36,7 @@
                 :data-active="currentId === conversation.id"
                 class="w-full justify-start relative group/item"
               >
-                <Icon name="lucide:message-circle" class="w-4 h-4" />
+                <MessageCircle class="w-4 h-4" />
                 <div class="flex flex-col items-start min-w-0 flex-1">
                   <span class="font-medium text-sm truncate w-full">
                     {{ conversation.title }}
@@ -52,7 +52,7 @@
                       @click.stop
                       aria-label="Delete conversation"
                     >
-                      <Icon name="lucide:trash-2" class="w-4 h-4 text-muted-foreground hover:text-red-600" />
+                      <Trash2 class="w-4 h-4 text-muted-foreground hover:text-red-600" />
                     </button>
                   </AlertDialogTrigger>
 
@@ -94,7 +94,7 @@
         <DropdownMenu>
           <DropdownMenuTrigger as-child>
             <Button variant="ghost" size="sm" class="h-8 w-8 p-0">
-              <Icon name="lucide:more-horizontal" class="w-4 h-4" />
+              <MoreHorizontal class="w-4 h-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" class="w-56 backdrop-blur-xl bg-background/50">
@@ -102,20 +102,20 @@
             <DropdownMenuSeparator />
             <!-- Settings -->
             <DropdownMenuItem @click="openSettings" class="cursor-pointer">
-              <Icon name="lucide:settings" class="w-4 h-4 mr-2" />
+              <Settings class="w-4 h-4 mr-2" />
               Settings
             </DropdownMenuItem>
 
             <!-- GitHub link -->
             <DropdownMenuItem class="cursor-pointer" @click="openGithub">
-              <Icon name="lucide:github" class="w-4 h-4 mr-2" />
+              <Github class="w-4 h-4 mr-2" />
               GitHub
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
             <!-- Logout -->
             <DropdownMenuItem @click="logout" class="cursor-pointer text-red-600 focus:text-red-600">
-              <Icon name="lucide:log-out" class="w-4 h-4 mr-2" />
+              <LogOut class="w-4 h-4 mr-2" />
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -168,6 +168,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { Plus, MessageCircle, Trash2, MoreHorizontal, Settings, Github, LogOut } from 'lucide-vue-next'
 
 interface User {
   id: string

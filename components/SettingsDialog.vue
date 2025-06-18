@@ -356,6 +356,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from 'vue-sonner'
 import { computed, ref, watch, onMounted } from 'vue'
 import { useSettings } from '~/composables/useSettings'
+import { Check, Archive, Download, Trash2, User, KeyRound, LogOut } from 'lucide-vue-next'
 
 interface User {
   id: string

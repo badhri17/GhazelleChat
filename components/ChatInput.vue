@@ -12,7 +12,7 @@
             @click="triggerFileDialog"
             class="h-9 w-9 rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-colors flex-shrink-0"
           >
-            <Icon name="lucide:paperclip" class="w-5 h-5" />
+            <Paperclip class="w-5 h-5" />
           </Button>
           <input ref="fileInputRef" type="file" class="hidden" multiple accept="image/*,application/pdf" @change="handleFileChange" />
 
@@ -37,19 +37,20 @@
                 : 'bg-primary hover:bg-primary/90 glow-button'
             ]"
           >
-            <Icon v-if="isLoading" name="lucide:loader-2" class="w-5 h-5 animate-spin" />
-            <Icon v-else-if="isStreaming" name="lucide:square" class="w-4 h-4" />
-            <Icon v-else name="lucide:arrow-up" class="w-5 h-5" />
+            <Loader2 v-if="isLoading" class="w-5 h-5 animate-spin" />
+            <Square v-else-if="isStreaming" class="w-4 h-4" />
+            <ArrowUp v-else class="w-5 h-5" />
           </Button>
         </div>
       </form>
       <!-- Preview attachments -->
       <div v-if="attachments.length" class="flex gap-2 mt-2 flex-wrap">
         <div v-for="file in attachments" :key="file.id" class="px-3 py-1 text-sm bg-muted rounded-full flex items-center gap-2">
-          <Icon :name="file.mimeType.startsWith('image/') ? 'lucide:image' : 'lucide:file-text'" class="w-4 h-4" />
+          <Image v-if="file.mimeType.startsWith('image/')" class="w-4 h-4" />
+          <FileText v-else class="w-4 h-4" />
           <span>{{ file.fileName }}</span>
           <button type="button" @click="attachments = attachments.filter(a => a.id !== file.id)" class="text-muted-foreground hover:text-foreground">
-            <Icon name="lucide:x" class="w-3 h-3" />
+            <X class="w-3 h-3" />
           </button>
         </div>
       </div>
@@ -61,6 +62,9 @@
 import { useSidebar } from '@/components/ui/sidebar'
 import { toast } from 'vue-sonner'
 import { validateAttachment } from '@/lib/attachmentRules'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Paperclip, X, Loader2, Square, ArrowUp, Image, FileText } from 'lucide-vue-next'
 
 interface UploadedAttachment {
   id: string

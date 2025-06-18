@@ -45,7 +45,7 @@
           rel="noopener noreferrer"
           class="w-40 h-48 rounded border flex flex-col items-center justify-center gap-2 bg-background/30 hover:bg-background/50 transition text-center text-xs p-2 cursor-pointer"
         >
-          <Icon name="lucide:file-text" class="w-8 h-8 text-muted-foreground text-2xl" />
+          <FileText class="w-8 h-8 text-muted-foreground text-2xl" />
           <span class="truncate w-full">{{ att.fileName }}</span>
         </a>
       </div>
@@ -60,7 +60,7 @@
 
         <!-- While streaming with no content yet, show spinner + text -->
         <div v-else-if="isStreaming" class="flex items-center gap-2 text-foreground">
-          <Icon name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+          <Loader2 class="w-4 h-4 animate-spin" />
           <span>Thinking...</span>
         </div>
 
@@ -83,13 +83,13 @@
         size="icon"
         class="absolute top-1 right-1 w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
       >
-        <Icon name="lucide:copy" class="w-3 h-3 cursor-pointer" />
+        <Copy class="w-3 h-3 cursor-pointer" />
       </Button>
       
       <!-- Status indicator for streaming messages -->
       <div v-if="message.status === 'streaming' && !isStreaming" class="mt-2">
         <span class="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-          <Icon name="lucide:wifi" class="w-3 h-3 animate-pulse" />
+          <Wifi class="w-3 h-3 animate-pulse" />
           Generating in background...
         </span>
       </div>
@@ -97,7 +97,7 @@
       <!-- Status indicator for incomplete messages -->
       <div v-if="message.status === 'incomplete' && !isStreaming" class="mt-2">
         <span class="text-xs text-orange-600 dark:text-orange-400 flex items-center gap-1">
-          <Icon name="lucide:pause-circle" class="w-3 h-3" />
+          <PauseCircle class="w-3 h-3" />
           Generation was stopped
         </span>
       </div>
@@ -112,6 +112,8 @@ import { toast } from 'vue-sonner'
 import { computed, ref, watch } from 'vue'
 import { marked } from 'marked'
 import { useDebounceFn } from '@vueuse/core'
+import { useMarkdown } from '~/composables/useMarkdown'
+import { FileText, Loader2, Copy, Wifi, PauseCircle } from 'lucide-vue-next'
 
 const emit = defineEmits(['image-loaded'])
 
