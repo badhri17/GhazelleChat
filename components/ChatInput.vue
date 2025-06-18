@@ -44,14 +44,36 @@
         </div>
       </form>
       <!-- Preview attachments -->
-      <div v-if="attachments.length" class="flex gap-2 mt-2 flex-wrap">
-        <div v-for="file in attachments" :key="file.id" class="px-3 py-1 text-sm bg-muted rounded-full flex items-center gap-2">
+      <div v-if="attachments.length" class="flex gap-2 mt-2 flex-wrap relative">
+        <div 
+          v-for="file in attachments" 
+          :key="file.id" 
+          class="px-3 py-1 text-sm bg-muted rounded-full flex items-center gap-2 relative cursor-pointer transition-all hover:bg-background/40"
+          @mouseenter="file.mimeType.startsWith('image/') && (hoveredImageId = file.id)"
+          @mouseleave="hoveredImageId = null"
+        >
           <Image v-if="file.mimeType.startsWith('image/')" class="w-4 h-4" />
           <FileText v-else class="w-4 h-4" />
           <span>{{ file.fileName }}</span>
           <button type="button" @click="attachments = attachments.filter(a => a.id !== file.id)" class="text-muted-foreground hover:text-foreground">
             <X class="w-3 h-3" />
           </button>
+          
+          <!-- Image Preview on Hover -->
+          <div 
+            v-if="hoveredImageId === file.id && file.mimeType.startsWith('image/')"
+            class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 pointer-events-none"
+          >
+            <div class="bg-background/95 backdrop-blur-xl border border-border/50 rounded-lg p-2 shadow-2xl">
+              <img 
+                :src="file.url" 
+                :alt="file.fileName"
+                class="max-w-xs max-h-48 object-contain rounded-md"
+                loading="lazy"
+              />
+              <p class="text-xs text-muted-foreground mt-1 text-center">{{ file.fileName }}</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -105,6 +127,7 @@ const inputMessage = computed({
 
 const attachments = ref<UploadedAttachment[]>([])
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const hoveredImageId = ref<string | null>(null)
 
 function handleAddNewLine() {
   inputMessage.value += '\n'
