@@ -248,7 +248,7 @@ function formatDate(date: Date | string) {
 
 function openGithub() {
   if (process.client) {
-    window.open('https://github.com/your-repo', '_blank')
+    window.open('https://github.com/badhri17/GhazelleChat', '_blank')
   }
 }
 
