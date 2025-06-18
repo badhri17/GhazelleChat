@@ -25,7 +25,7 @@
         </div>
 
                 <!-- Right Content -->
-        <div class="flex-1 overflow-y-auto overflow-x-hidden">
+        <div class="flex-1 overflow-y-auto overflow-x-visible">
           <!-- Tab Content with Transition -->
           <Transition name="slide-fade" mode="out-in">
             <!-- General Tab -->
@@ -83,8 +83,6 @@
                 
                 <div class="space-y-4">
                   <p class="text-sm text-muted-foreground">Choose your preferred background image</p>
-                  
-                  <!-- Background Grid -->
                   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div 
                       v-for="background in availableBackgrounds" 

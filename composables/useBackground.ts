@@ -1,26 +1,21 @@
-// Dark versions
 import bg1Dark from "~/assets/images/dark/bg1-dark.webp";
 import bg2Dark from "~/assets/images/dark/bg2-dark.webp";
 import bg3Dark from "~/assets/images/dark/bg3-dark.webp";
 import bg4Dark from "~/assets/images/dark/bg4-dark.webp";
 import bg5Dark from "~/assets/images/dark/bg5-dark.webp";
+import bg6Dark from "~/assets/images/dark/bg6-dark.webp";
 
-// Light versions
 import bg1Light from "~/assets/images/light/bg1-light.webp";
 import bg2Light from "~/assets/images/light/bg2-light.webp";
 import bg3Light from "~/assets/images/light/bg3-light.webp";
 import bg4Light from "~/assets/images/light/bg4-light.webp";
 import bg5Light from "~/assets/images/light/bg5-light.webp";
+import bg6Light from "~/assets/images/light/bg6-light.webp";
 
 import { computed, watch } from 'vue';
 import { useColorMode, useCookie } from '#imports';
 
 export const useBackground = () => {
-  /**
-   * We keep a base id (e.g. "bg1") and map to the corresponding
-   * dark / light file. This allows us to seamlessly swap the image
-   * when the global color mode (from @nuxtjs/color-mode) changes.
-   */
   const baseBackgrounds = [
     {
       id: "bg1",
@@ -52,19 +47,21 @@ export const useBackground = () => {
       dark: bg5Dark,
       light: bg5Light,
     },
+    {
+      id: "bg6",
+      name: "Eclipse",
+      dark: bg6Dark,
+      light: bg6Light,
+    },
   ] as const;
 
   const colorMode = useColorMode();
-  // Directly read the color-mode cookie for 1st paint (SSR + immediate CSR)
   const themeCookie = useCookie<string>('nuxt_color_mode');
   const currentTheme = computed(() => themeCookie.value || colorMode.preference || colorMode.value);
-
-  // Keep cookie in sync if theme changes through toggle
   watch(() => colorMode.preference || colorMode.value, (val) => {
     if (val && themeCookie.value !== val) themeCookie.value = val as any;
   });
 
-  // Expose a computed array that automatically picks the right image
   const availableBackgrounds = computed(() =>
     baseBackgrounds.map((bg) => ({
       id: bg.id,
@@ -125,7 +122,7 @@ export const useBackground = () => {
   const getCurrentBackgroundPath = computed(() => {
     const bg = baseBackgrounds.find((bg) => bg.id === currentBackground.value);
     if (!bg) {
-      return baseBackgrounds[0].dark; // fallback – shouldn't really happen
+      return baseBackgrounds[0].dark; 
     }
     return currentTheme.value === 'dark' ? bg.dark : bg.light;
   });
