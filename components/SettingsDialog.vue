@@ -419,8 +419,24 @@ watch(currentBackground, (newValue) => {
 })
 
 // Methods
-function logout() {
-  emit('logout')
+async function logout() {
+  try {
+    await $fetch('/api/auth/logout', { method: 'POST' })
+    emit('update:open', false)
+    if (process.client) {
+      window.location.href = '/login'
+    } else {
+      await navigateTo('/login')
+    }
+  } catch (error) {
+    console.error('Logout error:', error)
+    // Even if logout fails, redirect to login page
+    if (process.client) {
+      window.location.href = '/login'
+    } else {
+      await navigateTo('/login')
+    }
+  }
 }
 
 function showComingSoonToast() {

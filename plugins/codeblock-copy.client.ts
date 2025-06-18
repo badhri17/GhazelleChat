@@ -1,11 +1,9 @@
 import { toast } from 'vue-sonner'
 
 export default defineNuxtPlugin(() => {
-  // Add global function for copying code blocks
   if (process.client) {
     (window as any).copyCodeBlock = async (codeId: string) => {
       try {
-        // Get the code text from the data attribute
         const codeElement = document.getElementById(codeId)
         const wrapper = codeElement?.closest('.code-block-wrapper') as HTMLElement
         const encodedText = wrapper?.dataset.code

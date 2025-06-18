@@ -212,10 +212,20 @@ function openSettings() {
 async function logout() {
   try {
     await $fetch('/api/auth/logout', { method: 'POST' })
-    await navigateTo('/')
+    // Force a full page reload to ensure all state is cleared
+    if (process.client) {
+      window.location.href = '/login'
+    } else {
+      await navigateTo('/login')
+    }
   } catch (error) {
     console.error('Logout error:', error)
-    await navigateTo('/')
+    // Even if logout fails, redirect to login page
+    if (process.client) {
+      window.location.href = '/login'
+    } else {
+      await navigateTo('/login')
+    }
   }
 }
 

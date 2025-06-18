@@ -1,10 +1,13 @@
 <template>
   <div class="min-h-screen flex flex-col bg-background">
     <header class="border-b px-4 py-3 flex justify-between items-center">
-      <div class="flex items-center gap-2">
-        <NuxtLink to="/" class="flex items-center gap-2 hover:opacity-80 transition-opacity">
-          <h1 class="text-xl font-bold">GhazelleChat</h1>
-          <span class="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">Beta</span>
+      <div class="flex items-center gap-2 px-4 py-4 justify-center">
+        <NuxtLink to="/" class="flex items-center hover:opacity-80 transition-opacity">
+          <img 
+            :src="logoSrc" 
+            alt="GhazelleChat" 
+            class="h-14 w-33" 
+          />
         </NuxtLink>
       </div>
       <ThemeToggle />
@@ -17,9 +20,19 @@
 </template>
 
 <script setup lang="ts">
+import darkLogo from '@/assets/images/logo/logo1.png';
+import lightLogo from '@/assets/images/logo/logo2.png';
+import { useColorMode, useCookie, useRoute } from '#imports';
+
+const colorMode = useColorMode();
+const themeCookie = useCookie<string>('nuxt_color_mode');
+const currentTheme = computed(() => themeCookie.value || colorMode.preference || colorMode.value);
+
+const logoSrc = computed(() => (currentTheme.value === 'dark' ? darkLogo : lightLogo));
+
 definePageMeta({
-  layout: false, // Disable default layout
-  middleware: 'guest' // Only allow non-authenticated users
+  layout: false, 
+  middleware: 'guest' 
 })
 
 interface User {

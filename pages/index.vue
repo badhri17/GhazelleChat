@@ -55,9 +55,9 @@ interface Conversation {
 
 const { data: userData, pending: userPending } = await useFetch('/api/auth/me')
 
-const { data: conversationsData, pending: conversationsPending } = userData.value?.data?.user 
+const { data: conversationsData, pending: conversationsPending, refresh: refreshConversationsData } = userData.value?.data?.user 
   ? await useFetch('/api/conversations') 
-  : { data: ref(null), pending: ref(false) }
+  : { data: ref(null), pending: ref(false), refresh: () => Promise.resolve() }
 
 const pending = computed(() => userPending.value || conversationsPending.value)
 const user = userData.value?.data?.user || null
@@ -68,6 +68,23 @@ const conversations = ref(conversationsData.value?.conversations?.map((conv: any
 })) || [])
 const selectedModel = ref('gpt-4o-mini')
 const queryMessage = ref('')
+
+async function refreshConversations() {
+  if (user) {
+    const data = await $fetch('/api/conversations')
+    if (data?.conversations) {
+      conversations.value = data.conversations.map((conv: any) => ({
+        ...conv,
+        createdAt: new Date(conv.createdAt),
+        updatedAt: new Date(conv.updatedAt)
+      }))
+    }
+  }
+}
+
+
+provide('refreshConversations', refreshConversations)
+
 if (!pending.value && !user) {
   await navigateTo('/login')
 }
