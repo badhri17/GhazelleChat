@@ -2,37 +2,49 @@
 
 **Chat at gazelle speed — clone, run, and sprint.**
 
-Ghazelle Chat is a full-stack, edge-ready chat application that streams replies from multiple LLM providers (OpenAI, Groq & Anthropic) in real-time. It ships with credential-based authentication, a local SQLite database that can be swapped for Turso/libSQL for global low-latency reads and a modern, responsive UI built with Nuxt 3 & Tailwind CSS.
+Ghazelle Chat is an open-source, full-stack AI chat app that streams answers in real time from multiple LLM providers (OpenAI, Groq & Anthropic) in real-time. It ships with credential-based authentication, a local libSQL database that can be swapped for Turso/libSQL for global low-latency reads and a modern, responsive UI built with Nuxt 3 & Tailwind CSS.
 
 ---
+## 📸 Screenshots
 
+
+
+---
 ## ✨ Features
 
-• **Realtime AI chat** – Server-Sent Events (SSE) stream model tokens as they arrive for snappy UX.  
-• **Multi-provider toggle** – Switch between GPT-4o, Llama 3 & Claude-3 on the fly.  
-• **Persisted conversations** – Drizzle ORM manages `conversations` & `messages` tables (SQLite/Turso).  
+• **Realtime AI chat** – Server-Sent Events (SSE) stream model tokens as they arrive for snappy UX.
+
+• **Multi-provider toggle** – Switch between GPT-4o, Llama 3 & Claude-3 on the fly with your own API keys.
+
+• **Resumable streams** – In-flight generations survive page refresh; The backend keeps generating even if you refresh or lose connection.    
+
+• **Persisted conversations** – Drizzle ORM manages `conversations` & `messages` tables (libSQL/Turso). 
+
 • **Email / password auth** – Powered by Lucia with a Drizzle adapter.  
-• **Mobile-first UI** – Radix-Vue primitives via shadcn-nuxt, light/dark themes, RTL-ready.  
-• **Edge deploy-ready** – Designed for Vercel Edge Functions (< 75 ms TTFB, first token < 400 ms).  
+
+• **Image & PDF Attachments** – supports attachments in messages for richer context. Users can upload images or PDF files along with their question.
+
+• **Dynamic theming & backgrounds** – One-click light/dark and a gallery of ambient wallpapers that swap automatically with the theme.  
+
+• **Mobile-first UI** – Radix-Vue primitives via shadcn-nuxt, light/dark themes.   
+
+
 • **Keyboard shortcuts & micro-interactions** – Ctrl + K to focus input, Esc clears draft, animated send button, toast notifications.  
-• **Extensible** – Drop-in support for additional providers, vector search or PWA offline cache.
+
+• **Extensible** – Plug in new LLM providers, vector search, or PWA offline cache with minimal code changes.
 
 ---
 
 ## 🏗 Tech Stack
 
-| Layer | Choice | Rationale |
-| ----- | ------ | --------- |
-| Meta-framework | **Nuxt 3 + Nitro** | Hybrid SSR / edge; Vue SFC DX |
-| UI | **Tailwind CSS + shadcn-nuxt (Radix-Vue)** | Accessible, unstyled primitives; tiny CSS footprint |
-| Icons & Motion | `@nuxt/icon`, `tw-animate` | One-line SVG import, utility animations |
-| Auth | **Lucia + Drizzle adapter** | Credentials today, OAuth tomorrow |
-| DB | **libSQL / Turso + Drizzle ORM** | Offline `file:./db.sqlite`, swap to edge URL in prod |
-| LLM SDKs | `openai`, `groq-sdk`, `@anthropic-ai/sdk` | Pluggable provider dropdown |
-| Validation | **Zod** | End-to-end schema validation |
-
----
-
+| Layer            | Choice                                    |
+| ---------------- | ----------------------------------------- |
+| UI framework     | **Nuxt 3 + Nitro**                        |
+| Styling          | **Tailwind CSS + shadcn-nuxt (Radix-Vue)**|
+| Auth             | **Lucia**                                 |
+| Database / ORM   | **libSQL / Turso + Drizzle**              |
+| LLM SDKs         | `openai`, `groq-sdk`, `@anthropic-ai/sdk` |
+| Validation       | **Zod**                                   |
 ## 🚀 Quick Start
 
 ```bash
@@ -40,10 +52,9 @@ Ghazelle Chat is a full-stack, edge-ready chat application that streams replies 
 pnpm install --frozen-lockfile
 
 # 2. Copy env template & fill in secrets
-a cp .env.example .env
+cp .env.example .env
 
 # 3. Push database schema & optional seed
-docker run … # optional if using Turso
 pnpm db:push      # drizzle-kit push
 pnpm db:seed      # optional sample data
 
@@ -94,7 +105,6 @@ All server routes live under `/server/api` and are automatically mapped by Nitro
 | POST | `/api/auth/logout` | Revoke session |
 | GET  | `/api/auth/me` | Current user info |
 | POST | `/api/chat` | Stream chat completion |
-| POST | `/api/chat/resume` | Resume a streaming response |
 | GET  | `/api/conversations` | List user conversations |
 | DELETE | `/api/conversations/[id]` | Delete conversation |
 | GET  | `/api/conversations/[id]/messages` | Paginated messages |
@@ -131,14 +141,41 @@ Ghazelle Chat is optimised for **Vercel Edge Functions** but will happily run on
 
 ## 🤝 Contributing
 
-PRs & issues are welcome! If you add features that require new env vars, please update `README.md` & `.env.example`.
+We welcome and appreciate contributions of all kinds!  If you plan to add a new feature or make a non‑trivial change, please open an issue first so we can discuss scope and design.
 
-1. Fork → create feature branch → commit → open PR against `master`.  
-2. Ensure `pnpm lint` & `pnpm test` (coming soon) pass.  
-3. Describe your changes thoroughly.
+1. Open an issue → discuss the proposed change or bug fix.
+2. Fork the repo and create a descriptive branch name (feature/pagination, fix/input-focus, …).
+3. Keep the pull request focused and include a clear description.
+4. Ensure pnpm lint (and pnpm test, coming soon) pass before pushing.
+5. Update the documentation and .env.example if your change introduces new environment variables.
+
+
+Ensure pnpm lint (and pnpm test, coming soon) pass before pushing.
+
+Update the documentation and .env.example if your change introduces new environment variables.
+
+📌 Roadmap / Help‑Wanted
+
+- Message pagination & infinite scroll
+
+- Rate‑limiting middleware for public API routes
+
+- Built‑in web search tool (browser with citations)
+
+- Shareable conversation links / export
+
+- image generation
+
+If any of these interest you, comment on the corresponding issue (or create one) and claim it.  New ideas are always welcome!
 
 ---
 
-## 📜 License
+## License
 
-MIT © 2024 Ghazelle Chat Contributors
+MIT
+
+---
+
+## ☕ Support(Buy me a coffee)
+
+[![Buy Me A Coffee](https://img.shields.io/badge/-buy%20me%20a%20coffee-FFDD00?logo=buy-me-a-coffee\&logoColor=black\&style=for-the-badge)](https://www.buymeacoffee.com/badhri)
