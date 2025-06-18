@@ -64,7 +64,6 @@ import { SidebarTrigger } from '@/components/ui/sidebar'
 import ModelSelector from '@/components/ModelSelector.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 
-// Search
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -100,10 +99,12 @@ const hasSidebarContext = computed(() => {
 const showNewChatButton = computed(() => {
   try {
     const sidebar = useSidebar()
-    return sidebar?.state.value === 'collapsed'
+    if (sidebar.isMobile.value) {
+      return !sidebar.openMobile.value
+    }
+    return sidebar.state.value === 'collapsed'
   } catch {
-    // Fallback when sidebar context is not available
-    return false
+    return true
   }
 })
 const isMac = computed(() => process.client && /Mac|iPod|iPhone|iPad/.test(navigator.platform))

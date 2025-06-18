@@ -1,11 +1,9 @@
 <template>
-  <!-- Sticky Header -->
   <ChatHeader 
     :title="conversation?.title || 'Chat'"
     v-model:selected-model="selectedModel"
   />
 
-  <!-- Content -->
   <div class="flex flex-col h-full">
     <div class="flex-1 overflow-hidden">
       <ChatInterface 
@@ -116,7 +114,6 @@ function handleSendMessage(message: string, attachments: any[] = []) {
     chatInterfaceRef.value.sendMessage(message, attachments)
     inputMessage.value = ''
 
-    // Locally bump the current conversation to the top for instant re-ordering
     const idx = conversations.value.findIndex(c => c.id === conversationId)
     if (idx !== -1) {
       conversations.value[idx].updatedAt = new Date()

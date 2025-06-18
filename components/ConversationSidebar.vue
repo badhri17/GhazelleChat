@@ -30,10 +30,11 @@
             </div>
             
             <SidebarMenuItem v-for="conversation in sortedConversations" :key="conversation.id">
+              <!-- Conversation row (acts as its own hover group) -->
               <SidebarMenuButton 
                 @click="() => navigateTo(`/chat/${conversation.id}`)"
                 :data-active="currentId === conversation.id"
-                class="w-full justify-start"
+                class="w-full justify-start relative group/item"
               >
                 <Icon name="lucide:message-circle" class="w-4 h-4" />
                 <div class="flex flex-col items-start min-w-0 flex-1">
@@ -44,6 +45,33 @@
                     {{ formatDate(conversation.updatedAt) }}
                   </span>
                 </div>
+                <AlertDialog>
+                  <AlertDialogTrigger as-child>
+                    <button
+                      class="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                      @click.stop
+                      aria-label="Delete conversation"
+                    >
+                      <Icon name="lucide:trash-2" class="w-4 h-4 text-muted-foreground hover:text-red-600" />
+                    </button>
+                  </AlertDialogTrigger>
+
+                  <AlertDialogContent class="backdrop-blur-xl bg-background/40">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete conversation</AlertDialogTitle>
+                      <AlertDialogDescription class="text-foreground">
+                        This action cannot be undone. Are you sure you want to delete this conversation?
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction @click="deleteConversation(conversation.id)" class="bg-destructive text-foreground hover:bg-destructive/90">
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -125,10 +153,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useColorMode, useCookie } from '#imports';
-import { computed } from 'vue';
+import { useColorMode, useCookie, useRoute } from '#imports';
+import { computed, inject } from 'vue';
 import darkLogo from '@/assets/images/logo/logo1.png';
 import lightLogo from '@/assets/images/logo/logo2.png';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 
 interface User {
   id: string
@@ -161,6 +200,9 @@ const logoSrc = computed(() => (currentTheme.value === 'dark' ? darkLogo : light
 const sortedConversations = computed(() => {
   return [...(props.conversations || [])].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
 })
+
+const refreshConversations = inject<() => Promise<void>>('refreshConversations')
+const route = useRoute()
 
 function openSettings() {
   settingsOpen.value = true
@@ -196,6 +238,22 @@ function formatDate(date: Date | string) {
 function openGithub() {
   if (process.client) {
     window.open('https://github.com/your-repo', '_blank')
+  }
+}
+
+async function deleteConversation(id: string) {
+  try {
+    await $fetch(`/api/conversations/${id}`, { method: 'DELETE' })
+    // If the deleted conversation is currently open, redirect to /chat
+    if (route.params.id === id) {
+      await navigateTo('/chat')
+    }
+    // Refresh list if available
+    if (refreshConversations) {
+      await refreshConversations()
+    }
+  } catch (error) {
+    console.error('Failed to delete conversation:', error)
   }
 }
 </script> 

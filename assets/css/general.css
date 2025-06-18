@@ -102,14 +102,27 @@ html.light {
   --scroll-thumb-h:rgba(0,0,0,.50);
 }
 
-/* width / track (same in both modes) */
 ::-webkit-scrollbar       { width:8px; height:8px; }
 ::-webkit-scrollbar-track { background:transparent; }
 
-/* thumb picks up the variable */
+
 ::-webkit-scrollbar-thumb        { background-color: var(--scroll-thumb);  border-radius:4px; }
 ::-webkit-scrollbar-thumb:hover  { background-color: var(--scroll-thumb-h);} 
 
-/* Firefox & other engines */
 *            { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
 html.light * { scrollbar-color: var(--scroll-thumb) transparent; } /* keeps specificity */
+
+.prose {
+    :where(tbody tr):not(:where([class~="not-prose"],[class~="not-prose"] *)) {
+        border-bottom-width: 1px;
+        border-bottom-color: oklch(0.51 0 0);
+    }
+}
+
+.hover\:bg-sidebar-accent {
+    &:hover {
+        @media (hover: hover) {
+            background-color: oklch(0.4 0 0 / 0.4);
+        }
+    }
+}

@@ -23,12 +23,8 @@
             {{ tab.label }}
           </button>
         </div>
-
-                <!-- Right Content -->
         <div class="flex-1 overflow-y-auto overflow-x-visible">
-          <!-- Tab Content with Transition -->
           <Transition name="slide-fade" mode="out-in">
-            <!-- General Tab -->
             <div v-if="activeTab === 'general'" key="general" class="space-y-6">
               <div>
                 <h3 class="text-lg font-medium mb-4">General Settings</h3>
