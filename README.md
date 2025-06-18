@@ -6,6 +6,27 @@ Ghazelle Chat is an open-source, full-stack AI chat app that streams answers in 
 
 ---
 ## 📸 Screenshots
+<table>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/8f58b11e-4efa-4692-a2aa-16b53f52cb34" width="400"/></td>
+    <td><img src="https://github.com/user-attachments/assets/06d91f42-e0dd-4d32-83f6-03990174fbef" width="400"/></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/936303b0-7e5e-4ad7-b037-401fa377c4d9" width="400"/></td>
+    <td><img src="https://github.com/user-attachments/assets/ca5f0c4a-1822-45fa-84d9-3735f2b7316c" width="400"/></td>
+    </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/d12f21dd-62c9-4ed0-9d6e-3b0313a8abba" width="400"/></td>
+    <td><img src="https://github.com/user-attachments/assets/2b2bbeaf-eb8b-431a-96d2-e6023c78bbe2" width="400"/></td>
+    </tr>
+    
+
+
+
+  </tr>
+</table>
+
+
 
 
 
