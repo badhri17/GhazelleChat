@@ -13,28 +13,19 @@
 
       <!-- Main Content -->
       <SidebarInset>
-        <header class="border-b px-4 py-3 flex justify-between items-center">
-          <div class="flex items-center gap-2">
-            <SidebarTrigger />
-            <h2 class="font-semibold">Welcome to GhazelleChat</h2>
-          </div>
-          <ThemeToggle />
-        </header>
+        <ChatHeader
+          title="Welcome to GhazelleChat"
+          v-model:selected-model="selectedModel"
+        />
 
         <!-- Welcome Screen -->
-        <div class="flex-1 flex items-center justify-center p-4">
-          <div class="text-center">
-            <Icon name="lucide:message-circle" class="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-            <h3 class="text-xl font-medium mb-2">Select a conversation</h3>
-            <p class="text-muted-foreground mb-6">
-              Choose an existing conversation from the sidebar or start a new one.
-            </p>
-            <Button @click="startNewChat" size="lg">
-              <Icon name="lucide:plus" class="w-4 h-4 mr-2" />
-              Start New Chat
-            </Button>
-          </div>
-        </div>
+        <WelcomeSearch
+          title="Ask me anything"
+          subtitle="I'm here to help with information, creative tasks, or problem-solving"
+          v-model:message="queryMessage"
+          :current-model="selectedModel"
+          @send="handleQuickSend"
+        />
       </SidebarInset>
     </div>
   </SidebarProvider>
@@ -44,8 +35,10 @@
 import {
   SidebarInset,
   SidebarProvider,
-  SidebarTrigger,
 } from '@/components/ui/sidebar'
+import ChatHeader from '@/components/ChatHeader.vue'
+import { ref } from 'vue'
+import WelcomeSearch from '@/components/WelcomeSearch.vue'
 
 interface User {
   id: string
@@ -60,10 +53,8 @@ interface Conversation {
   updatedAt: Date
 }
 
-// Use server-side data fetching to eliminate flash
 const { data: userData, pending: userPending } = await useFetch('/api/auth/me')
 
-// Only fetch conversations if user is authenticated
 const { data: conversationsData, pending: conversationsPending } = userData.value?.data?.user 
   ? await useFetch('/api/conversations') 
   : { data: ref(null), pending: ref(false) }
@@ -75,13 +66,24 @@ const conversations = ref(conversationsData.value?.conversations?.map((conv: any
   createdAt: new Date(conv.createdAt),
   updatedAt: new Date(conv.updatedAt)
 })) || [])
-
-// Redirect to login if not authenticated
+const selectedModel = ref('gpt-4o-mini')
+const queryMessage = ref('')
 if (!pending.value && !user) {
   await navigateTo('/login')
 }
 
 async function startNewChat() {
+  await navigateTo('/chat')
+}
+
+async function handleQuickSend(message: string, attachments: any[] = []) {
+  if (!message.trim() && !attachments.length) return
+  
+  // Use the pending message composable to store message and attachments
+  const { setPendingMessage } = usePendingMessage()
+  setPendingMessage(message.trim(), attachments)
+  
+  // Navigate to chat page
   await navigateTo('/chat')
 }
 </script> 

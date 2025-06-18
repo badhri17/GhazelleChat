@@ -61,7 +61,20 @@ const inputMessage = ref('')
 const isLoading = ref(false)
 const isStreaming = ref(false)
 const selectedModel = ref('gpt-4o-mini')
+const { getPendingMessage } = usePendingMessage()
 
+onMounted(async () => {
+  const pendingData = getPendingMessage()
+  if (pendingData?.message?.trim() || pendingData?.attachments?.length) {
+    await nextTick()
+    setTimeout(() => {
+      if (chatInterfaceRef.value) {
+        console.log('🚀 Auto-sending pending message:', pendingData.message, 'with attachments:', pendingData.attachments?.length || 0)
+        handleSendMessage(pendingData.message || '', pendingData.attachments || [])
+      }
+    }, 100)
+  }
+})
 
 // Watch for loading state changes from ChatInterface
 watch(() => chatInterfaceRef.value?.isLoading, (newVal) => {
