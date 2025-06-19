@@ -1,3 +1,6 @@
 [build]
-command  = "pnpm run build"
+command  = "pnpm run build"          # now runs the netlify preset
 publish  = ".output/public"
+
+[functions]
+directory = ".output/netlify/functions"
