@@ -121,6 +121,10 @@ function startNewChat() {
 
 
 useEventListener('keydown', (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault()
+    openSearch()
+  }
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'o') {
     e.preventDefault()
     startNewChat()
