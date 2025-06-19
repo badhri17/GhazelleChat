@@ -1,7 +1,6 @@
 [build]
-command  = "pnpm run build"         # uses nuxi build --preset netlify
-publish  = "dist"                   # <-- static assets
+command  = "pnpm run build"
+publish  = ".output/public"
 
 [functions]
-# this path is where the preset outputs serverless bundles
 directory = ".netlify/functions-internal"
