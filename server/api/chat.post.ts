@@ -176,6 +176,8 @@ export default defineEventHandler(async (event) => {
 
     const stream = new ReadableStream({
       async start(controller) {
+        const DB_WRITE_INTERVAL = 500
+        let lastDbWrite = 0
         let fullResponse = ''
         let assistantMessageId = ''
         let userManuallyAborted = false
@@ -280,18 +282,18 @@ export default defineEventHandler(async (event) => {
                   if (content) {
                     fullResponse += content
                     
-                    // Update database in real-time with new content
-                    await db.update(messages)
-                      .set({ content: fullResponse })
-                      .where(eq(messages.id, assistantMessageId))
+                    if (Date.now() - lastDbWrite > DB_WRITE_INTERVAL) {
+                      await db.update(messages)
+                        .set({ content: fullResponse })
+                        .where(eq(messages.id, assistantMessageId))
+                      lastDbWrite = Date.now()
+                    }
                     
                     try {
-                      // Only send to client if still connected
                       if (!clientDisconnected) {
                         controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
                       }
                     } catch (e) {
-                      // Stream might be closed if client disconnected
                       if ((e as Error)?.message?.includes('closed')) {
                         console.log('🔌 Client stream closed, but continuing generation in background')
                         clientDisconnected = true
@@ -373,18 +375,18 @@ export default defineEventHandler(async (event) => {
                     const content = chunk.delta.text
                     fullResponse += content
                     
-                    // Update database in real-time with new content
-                    await db.update(messages)
-                      .set({ content: fullResponse })
-                      .where(eq(messages.id, assistantMessageId))
+                    if (Date.now() - lastDbWrite > DB_WRITE_INTERVAL) {
+                      await db.update(messages)
+                        .set({ content: fullResponse })
+                        .where(eq(messages.id, assistantMessageId))
+                      lastDbWrite = Date.now()
+                    }
                     
                     try {
-                      // Only send to client if still connected
                       if (!clientDisconnected) {
                         controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
                       }
                     } catch (e) {
-                     
                       if ((e as Error)?.message?.includes('closed')) {
                         console.log('🔌 Client stream closed, but continuing Anthropic generation in background')
                         clientDisconnected = true
@@ -503,7 +505,10 @@ export default defineEventHandler(async (event) => {
                         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
                         if (text) {
                           fullResponse += text
-                          await db.update(messages).set({ content: fullResponse }).where(eq(messages.id, assistantMessageId))
+                          if (Date.now() - lastDbWrite > DB_WRITE_INTERVAL) {
+                            await db.update(messages).set({ content: fullResponse }).where(eq(messages.id, assistantMessageId))
+                            lastDbWrite = Date.now()
+                          }
                           if (!clientDisconnected) {
                             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
                           }
