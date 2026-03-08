@@ -1,4 +1,4 @@
-import { createClient } from '@libsql/client'
+import { client } from '~/server/db'
 import { lucia } from '~/server/plugins/lucia'
 
 export default defineEventHandler(async (event) => {
@@ -18,9 +18,6 @@ export default defineEventHandler(async (event) => {
   if (!session) {
     throw createError({ statusCode: 401, statusMessage: 'Invalid session' })
   }
-
-  // Prepare client (could reuse existing but easy to create new)
-  const client = createClient({ url: process.env.DATABASE_URL || 'file:./db.sqlite' })
 
   const sql = `
     SELECT DISTINCT c.id, c.title, c.created_at AS createdAt, c.updated_at AS updatedAt

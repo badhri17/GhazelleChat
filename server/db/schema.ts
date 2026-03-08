@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, primaryKey, index } from 'drizzle-orm/sqlite-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { z } from 'zod'
 
@@ -15,7 +15,9 @@ export const sessions = sqliteTable('sessions', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   expiresAt: integer('expires_at').notNull(),
-})
+}, (table) => ({
+  userIdIdx: index('sessions_user_id_idx').on(table.userId),
+}))
 
 export const conversations = sqliteTable('conversations', {
   id: text('id').primaryKey(),
@@ -23,7 +25,9 @@ export const conversations = sqliteTable('conversations', {
   title: text('title').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-})
+}, (table) => ({
+  userIdUpdatedAtIdx: index('conversations_user_id_updated_at_idx').on(table.userId, table.updatedAt),
+}))
 
 export const messages = sqliteTable('messages', {
   id: text('id').primaryKey(),
@@ -33,16 +37,21 @@ export const messages = sqliteTable('messages', {
   model: text('model'), 
   status: text('status', { enum: ['complete', 'incomplete', 'streaming'] }).default('complete'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-})
+}, (table) => ({
+  conversationIdCreatedAtIdx: index('messages_conversation_id_created_at_idx').on(table.conversationId, table.createdAt),
+  statusIdx: index('messages_status_idx').on(table.status),
+}))
 export const attachments = sqliteTable('attachments', {
   id: text('id').primaryKey(),
   messageId: text('message_id').references(() => messages.id, { onDelete: 'cascade' }),
   fileName: text('file_name').notNull(),
   mimeType: text('mime_type').notNull(),
-  size: integer('size').notNull(), // Size in bytes
-  url: text('url').notNull(), // Publicly accessible URL (e.g. /uploads/xyz.pdf)
+  size: integer('size').notNull(),
+  url: text('url').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
-})
+}, (table) => ({
+  messageIdIdx: index('attachments_message_id_idx').on(table.messageId),
+}))
 
 // Zod schemas for validation
 export const insertUserSchema = createInsertSchema(users)
