@@ -68,7 +68,7 @@ I'm your AI assistant, and here's how we work together:
 Feel free to ask me anything - I can help with information, creative tasks, problem-solving, coding, and much more!
 
 What would you like to explore today?`,
-        model: 'gpt-4o-mini',
+        model: 'gpt-5-mini-2025-08-07',
         createdAt: new Date()
       }
     ]).onConflictDoNothing()

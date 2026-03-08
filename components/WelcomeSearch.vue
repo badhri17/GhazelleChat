@@ -139,7 +139,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
   isStreaming: false,
-  currentModel: 'gpt-4o-mini'
+  currentModel: 'gpt-5-mini-2025-08-07'
 })
 
 const emit = defineEmits<{
@@ -185,7 +185,7 @@ async function handleFileChange(event: Event) {
   if (!input.files) return
   const files = Array.from(input.files)
 
-  const model = props.currentModel || 'gpt-4o-mini'
+  const model = props.currentModel || 'gpt-5-mini-2025-08-07'
 
   for (const file of files) {
     const validationErr = validateAttachment(model, { mimeType: file.type, size: file.size })

@@ -60,7 +60,7 @@ async function resumeGeneration() {
       body: JSON.stringify({
         messageId: props.message.id,
         conversationId: props.conversationId,
-        model: props.message.model || 'gpt-4o-mini'
+        model: props.message.model || 'gpt-5-mini-2025-08-07'
       })
     })
 

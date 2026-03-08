@@ -19,29 +19,17 @@ interface ModelPolicy {
 // ────────────────────────────────────────────────────────────
 export const ATTACHMENT_POLICIES: Record<string, ModelPolicy> = {
   /*────────────────── OpenAI ──────────────────*/
-  // GPT-4o & 4o-mini: only images (no PDF support as of 2025-06)
-  "gpt-4o": {
+  "gpt-5.4-2026-03-05": {
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
     maxFileSizeMB: 10,
   },
-  "gpt-4o-mini": {
+  "gpt-5-mini-2025-08-07": {
     allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
     maxFileSizeMB: 5,
   },
 
   /*────────────────── Anthropic – Claude 3.5/4 ──────────────────*/
-  // Vision models now accept PDFs (max 32 MB, ≤100 pages) :contentReference[oaicite:0]{index=0}
   "claude-3-5-sonnet-latest": {
-    allowedMimeTypes: [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "image/gif",
-      "application/pdf",
-    ],
-    maxFileSizeMB: 32, // Anthropic docs: 32 MB total; use same per-file
-  },
-  "claude-sonnet-4-20250514": {
     allowedMimeTypes: [
       "image/jpeg",
       "image/png",
@@ -51,7 +39,17 @@ export const ATTACHMENT_POLICIES: Record<string, ModelPolicy> = {
     ],
     maxFileSizeMB: 32,
   },
-  "claude-opus-4-20250514": {
+  "claude-sonnet-4-6": {
+    allowedMimeTypes: [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+      "application/pdf",
+    ],
+    maxFileSizeMB: 32,
+  },
+  "claude-opus-4-6": {
     allowedMimeTypes: [
       "image/jpeg",
       "image/png",
@@ -63,18 +61,7 @@ export const ATTACHMENT_POLICIES: Record<string, ModelPolicy> = {
   },
 
   /*────────────────── Google – Gemini ──────────────────*/
-  // PDFs formally supported on Flash & Flash-Lite (≤50 MB, ≤1 000 pages) :contentReference[oaicite:1]{index=1}
-  "gemini-pro": {
-    // no official PDF support yet
-    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
-    maxFileSizeMB: 10,
-  },
-  "gemini-2.5-pro": {
-    // ditto – stick to images only
-    allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
-    maxFileSizeMB: 10,
-  },
-  "gemini-2.0-flash": {
+  "gemini-3.1-pro-preview": {
     allowedMimeTypes: [
       "image/jpeg",
       "image/png",
@@ -83,9 +70,20 @@ export const ATTACHMENT_POLICIES: Record<string, ModelPolicy> = {
       "application/pdf",
     ],
     maxFileSizeMB: 50,
-    maxFiles: 3000, // per Google doc (images & PDFs share this cap)
+    maxFiles: 3000,
   },
-  "gemini-2.0-flash-lite": {
+  "gemini-3-flash-preview": {
+    allowedMimeTypes: [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+      "application/pdf",
+    ],
+    maxFileSizeMB: 50,
+    maxFiles: 3000,
+  },
+  "gemini-3.1-flash-lite-preview": {
     allowedMimeTypes: [
       "image/jpeg",
       "image/png",

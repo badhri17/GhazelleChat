@@ -76,7 +76,7 @@ const chatInterfaceRef = ref()
 const inputMessage = ref('')
 const isLoading = ref(false)
 const isStreaming = ref(false)
-const selectedModel = ref('gpt-4o-mini')
+const selectedModel = ref('gpt-5-mini-2025-08-07')
 
 
 // Watch for loading state changes from ChatInterface

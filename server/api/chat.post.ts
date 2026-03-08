@@ -24,17 +24,16 @@ const chatSchema = z.object({
   })).optional().default([]),
   conversationId: z.string().nullable().optional(),
   model: z.enum([
-    'gpt-4o',
-    'gpt-4o-mini',
+    'gpt-5.4-2026-03-05',
+    'gpt-5-mini-2025-08-07',
     'claude-3-5-sonnet-latest',
-    'claude-sonnet-4-20250514',
-    'claude-opus-4-20250514',
+    'claude-sonnet-4-6',
+    'claude-opus-4-6',
     'llama-3.1-70b-versatile',
-    'gemini-pro',
-    'gemini-2.5-pro',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite'
-  ]).default('gpt-4o-mini'),
+    'gemini-3.1-pro-preview',
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite-preview'
+  ]).default('gpt-5-mini-2025-08-07'),
   systemPrompt: z.string().optional().nullable()
 })
 
@@ -337,9 +336,9 @@ export default defineEventHandler(async (event) => {
 
               
               let maxTokens = 2048 // Default for older models
-              if (model === 'claude-sonnet-4-20250514') {
+              if (model === 'claude-sonnet-4-6') {
                 maxTokens = 4096 // Claude Sonnet 4 can handle up to 64K, but we'll use 4K for reasonable response times
-              } else if (model === 'claude-opus-4-20250514') {
+              } else if (model === 'claude-opus-4-6') {
                 maxTokens = 4096 // Claude Opus 4 can handle up to 32K, but we'll use 4K for reasonable response times
               }
 

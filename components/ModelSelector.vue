@@ -12,8 +12,8 @@
           <Icon name="simple-icons:openai" class="w-4 h-4" />
           OpenAI
         </SelectLabel>
-        <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-        <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+        <SelectItem value="gpt-5.4-2026-03-05">GPT-5.4</SelectItem>
+        <SelectItem value="gpt-5-mini-2025-08-07">GPT-5 Mini</SelectItem>
       </SelectGroup>
       <SelectGroup>
         <SelectLabel class="flex items-center gap-2">
@@ -21,17 +21,17 @@
           Anthropic
         </SelectLabel>
         <SelectItem value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet</SelectItem>
-        <SelectItem value="claude-sonnet-4-20250514">Claude Sonnet 4</SelectItem>
-        <SelectItem value="claude-opus-4-20250514">Claude Opus 4</SelectItem>
+        <SelectItem value="claude-sonnet-4-6">Claude Sonnet 4</SelectItem>
+        <SelectItem value="claude-opus-4-6">Claude Opus 4</SelectItem>
       </SelectGroup>
       <SelectGroup>
         <SelectLabel class="flex items-center gap-2">
           <Icon name="simple-icons:google" class="w-4 h-4" />
           Google Gemini
         </SelectLabel>
-        <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
-        <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
-        <SelectItem value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite</SelectItem>
+        <SelectItem value="gemini-3.1-pro-preview">Gemini 3.1 Pro</SelectItem>
+        <SelectItem value="gemini-3-flash-preview">Gemini 3 Flash</SelectItem>
+        <SelectItem value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash-Lite</SelectItem>
       </SelectGroup>
       <SelectGroup>
         <SelectLabel class="flex items-center gap-2">

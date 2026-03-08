@@ -66,7 +66,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  modelValue: 'gpt-4o-mini'
+  modelValue: 'gpt-5-mini-2025-08-07'
 })
 
 const emit = defineEmits<{

@@ -66,7 +66,7 @@ const conversations = ref(conversationsData.value?.conversations?.map((conv: any
   createdAt: new Date(conv.createdAt),
   updatedAt: new Date(conv.updatedAt)
 })) || [])
-const selectedModel = ref('gpt-4o-mini')
+const selectedModel = ref('gpt-5-mini-2025-08-07')
 const queryMessage = ref('')
 
 async function refreshConversations() {

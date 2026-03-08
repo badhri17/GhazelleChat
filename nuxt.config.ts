@@ -58,12 +58,33 @@ export default defineNuxtConfig({
     componentDir: "./components/ui",
   },
   nitro: {
+    storage: {
+      uploads: {
+        driver: 'fs',
+        base: './public/uploads'
+      }
+    },
+    publicAssets: [
+      {
+        baseURL: '/uploads',
+        dir: 'public/uploads',
+        maxAge: 60 * 60 * 24 * 7 // 7 days
+      }
+    ],
+    // Enable static file serving for uploads
+    static: true,
+    // Enable experimental features for better WSL support
+    experimental: {
+      wasm: true
+    },
     hooks: {
       'compiled': (nitro) => {
         // @ts-ignore
+        const fs = require('node:fs')
+        const path = require('node:path')
+        
+        // Copy libsql native dependencies
         if (nitro.options.preset === 'node-server' || nitro.options.preset === 'node') {
-          const fs = require('node:fs')
-          const path = require('node:path')
           const arch = process.arch
           const platform = process.platform
           
@@ -85,6 +106,20 @@ export default defineNuxtConfig({
               fs.cpSync(srcDir, destDir, { recursive: true });
             }
           }
+        }
+        
+        // Ensure uploads directory exists in build output
+        try {
+          const sourceUploadsDir = path.join(nitro.options.workspaceDir, 'public', 'uploads')
+          const targetUploadsDir = path.join(nitro.options.output.dir, 'public', 'uploads')
+          
+          if (fs.existsSync(sourceUploadsDir)) {
+            console.log('Copying uploads directory to build output...')
+            fs.mkdirSync(path.dirname(targetUploadsDir), { recursive: true })
+            fs.cpSync(sourceUploadsDir, targetUploadsDir, { recursive: true })
+          }
+        } catch (error: any) {
+          console.warn('Could not copy uploads directory:', error.message)
         }
       }
     }

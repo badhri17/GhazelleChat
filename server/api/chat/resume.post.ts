@@ -12,17 +12,16 @@ const resumeSchema = z.object({
   messageId: z.string(),
   conversationId: z.string(),
   model: z.enum([
-    'gpt-4o',
-    'gpt-4o-mini',
+    'gpt-5.4-2026-03-05',
+    'gpt-5-mini-2025-08-07',
     'claude-3-5-sonnet-latest',
-    'claude-sonnet-4-20250514',
-    'claude-opus-4-20250514',
+    'claude-sonnet-4-6',
+    'claude-opus-4-6',
     'llama-3.1-70b-versatile',
-    'gemini-pro',
-    'gemini-2.5-pro',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash-lite'
-  ]).default('gpt-4o-mini')
+    'gemini-3.1-pro-preview',
+    'gemini-3-flash-preview',
+    'gemini-3.1-flash-lite-preview'
+  ]).default('gpt-5-mini-2025-08-07')
 })
 
 interface ChatMessage {
