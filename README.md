@@ -2,7 +2,7 @@
 
 **Chat at gazelle speed — clone, run, and sprint.**
 
-Ghazelle Chat is an open-source, full-stack AI chat app that streams answers in real time from multiple LLM providers (OpenAI, Groq & Anthropic) in real-time. It ships with credential-based authentication, a local libSQL database that can be swapped for Turso/libSQL for global low-latency reads and a modern, responsive UI built with Nuxt 3 & Tailwind CSS.
+Ghazelle Chat is an open-source, full-stack AI chat app that streams answers in real time from multiple LLM providers (OpenAI, Anthropic, Google Gemini, Groq) with optional OpenRouter expansion. It ships with credential-based authentication, a local libSQL database that can be swapped for Turso/libSQL for global low-latency reads and a modern, responsive UI built with Nuxt 3 & Tailwind CSS.
 
 ---
 ## 📸 Screenshots
@@ -35,7 +35,9 @@ Ghazelle Chat is an open-source, full-stack AI chat app that streams answers in 
 
 • **Realtime AI chat** – Server-Sent Events (SSE) stream model tokens as they arrive for snappy UX.
 
-• **Multi-provider toggle** – Switch between GPT-4o, Llama 3 & Claude-3 on the fly with your own API keys.
+• **Model picker with registry** – A centralized model registry powers a Command-palette picker with grouped categories (Best, Fast, Open), search, badges, and a "Browse more models" drawer for discovery. Supports GPT-5.4, Claude Opus/Sonnet 4, Gemini 3 Pro/Flash, Llama 3 on Groq, and more via OpenRouter.
+
+• **Personalized model selection** – Pin, favorite, and track recent models. Preferences persist locally and surface your go-to models at the top of the picker.
 
 • **Resumable streams** – In-flight generations survive page refresh; The backend keeps generating even if you refresh or lose connection.    
 
@@ -64,7 +66,7 @@ Ghazelle Chat is an open-source, full-stack AI chat app that streams answers in 
 | Styling          | **Tailwind CSS + shadcn-nuxt (Radix-Vue)**|
 | Auth             | **Lucia**                                 |
 | Database / ORM   | **libSQL / Turso + Drizzle**              |
-| LLM SDKs         | `openai`, `groq-sdk`, `@anthropic-ai/sdk` |
+| LLM SDKs         | `openai`, `groq-sdk`, `@anthropic-ai/sdk`, Gemini REST, OpenRouter (via OpenAI SDK) |
 | Validation       | **Zod**                                   |
 ## 🚀 Quick Start
 
@@ -88,8 +90,10 @@ pnpm dev          # http://localhost:3000
 | Key | Description |
 | --- | ----------- |
 | `OPENAI_API_KEY` | Secret key from OpenAI dashboard |
-| `GROQ_API_KEY` | Secret key from GroqCloud |
 | `ANTHROPIC_API_KEY` | Secret key from Anthropic |
+| `GOOGLE_API_KEY` | Secret key from Google AI Studio (Gemini) |
+| `GROQ_API_KEY` | Secret key from GroqCloud |
+| `OPENROUTER_API_KEY` | *(optional)* Key from OpenRouter for expanded model access |
 | `DATABASE_URL` | `file:./db.sqlite` (default) or Turso URL `libsql://…` |
 | `AUTH_SECRET` | Random 32-byte string used by Lucia |
 
@@ -109,7 +113,8 @@ An example template lives in **.env.example**.
 │  ├─ api/        # REST endpoints (auth, chat, conversations, …)
 │  ├─ db/         # Drizzle schema & seed
 │  └─ utils/      # OpenAI / Groq / Anthropic helpers
-├─ lib/           # Shared client-side helper utilities
+├─ lib/           # Shared utilities & model registry (lib/models/)
+│  └─ models/     # Model types, registry, helpers, provider metadata
 └─ nuxt.config.ts # Runtime config & module registration
 ```
 
