@@ -3,6 +3,7 @@ import { promises as fs } from 'fs'
 import { nanoid } from 'nanoid'
 import path from 'path'
 import { validateAttachment } from '~/lib/attachmentRules'
+import { DEFAULT_MODEL_ID } from '~/lib/models/registry'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -18,7 +19,7 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: 'Missing file field' })
     }
 
-    const model = (typeof modelPart?.data === 'string' ? modelPart.data : (modelPart?.data ? modelPart.data.toString() : 'gpt-5-mini-2025-08-07'))
+    const model = (typeof modelPart?.data === 'string' ? modelPart.data : (modelPart?.data ? modelPart.data.toString() : DEFAULT_MODEL_ID))
     const error = validateAttachment(model, { mimeType: filePart.type, size: filePart.data.length })
     if (error) {
       throw createError({ statusCode: 400, statusMessage: error })

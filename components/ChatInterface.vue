@@ -42,6 +42,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import ChatMessage from '~/components/ChatMessage.vue'
 import { Icon } from '@iconify/vue'
 import { useSettings } from '~/composables/useSettings'
+import { DEFAULT_MODEL_ID } from '~/lib/models/registry'
 
 interface User {
   id: string
@@ -66,7 +67,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  modelValue: 'gpt-5-mini-2025-08-07'
+  modelValue: DEFAULT_MODEL_ID
 })
 
 const emit = defineEmits<{

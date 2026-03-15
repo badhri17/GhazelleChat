@@ -12,6 +12,8 @@ import { validateIncomingAttachments, linkAttachmentsToMessage, IncomingAttachme
 import { buildAnthropicMessages } from '~/server/utils/anthropic'
 import { buildOpenAIMessages } from '~/server/utils/openai'
 import { buildGeminiMessages } from '~/server/utils/gemini'
+import { resolveProvider } from '~/server/utils/modelRouter'
+import { DEFAULT_MODEL_ID } from '~/lib/models/registry'
 
 const chatSchema = z.object({
   message: z.string(),
@@ -23,17 +25,7 @@ const chatSchema = z.object({
     size: z.number(),
   })).optional().default([]),
   conversationId: z.string().nullable().optional(),
-  model: z.enum([
-    'gpt-5.4-2026-03-05',
-    'gpt-5-mini-2025-08-07',
-    'claude-3-5-sonnet-latest',
-    'claude-sonnet-4-6',
-    'claude-opus-4-6',
-    'llama-3.1-70b-versatile',
-    'gemini-3.1-pro-preview',
-    'gemini-3-flash-preview',
-    'gemini-3.1-flash-lite-preview'
-  ]).default('gpt-5-mini-2025-08-07'),
+  model: z.string().min(1).default(DEFAULT_MODEL_ID),
   systemPrompt: z.string().optional().nullable()
 })
 
@@ -110,11 +102,13 @@ export default defineEventHandler(async (event) => {
       content: msg.content
     }))
 
-    if (systemPrompt && typeof systemPrompt === 'string' && systemPrompt.trim() !== '' && (model.startsWith('gpt-') || model.startsWith('llama-'))) {
+    const resolved = resolveProvider(model)
+
+    if (systemPrompt && typeof systemPrompt === 'string' && systemPrompt.trim() !== '' && (resolved.provider === 'openai' || resolved.provider === 'groq' || resolved.provider === 'openrouter')) {
       chatMessages.unshift({ role: 'system', content: systemPrompt.trim() })
     }
 
-    if (attachments && attachments.length && !model.startsWith('claude-')) {
+    if (attachments && attachments.length && resolved.provider !== 'anthropic') {
       const protocol = (event.node.req.headers['x-forwarded-proto'] as string) || 'http'
       const host = event.node.req.headers.host || 'localhost:3000'
       const baseUrl = `${protocol}://${host}`
@@ -218,7 +212,7 @@ export default defineEventHandler(async (event) => {
           setAbortController(assistantMessageId, abortController)
 
           try {
-            if (model.startsWith('gpt-')) {
+            if (resolved.provider === 'openai') {
               const openai = new OpenAI({
                 apiKey: config.openaiApiKey
               })
@@ -331,7 +325,7 @@ export default defineEventHandler(async (event) => {
                 tokensEstimate: Math.ceil(fullResponse.length / 4) // rough estimate
               })
 
-            } else if (model.startsWith('claude-')) {
+            } else if (resolved.provider === 'anthropic') {
               const anthropic = new Anthropic({
                 apiKey: config.anthropicApiKey
               })
@@ -424,7 +418,7 @@ export default defineEventHandler(async (event) => {
               //   responseLength: fullResponse.length,
               //   tokensEstimate: Math.ceil(fullResponse.length / 4) // rough estimate
               // })
-            } else if (model.startsWith('gemini-')) {
+            } else if (resolved.provider === 'google') {
               const apiKey = config.geminiApiKey
               if (!apiKey) {
                 throw new Error('Missing Gemini API key')
@@ -530,12 +524,82 @@ export default defineEventHandler(async (event) => {
                 }
                 throw error
               }
+            } else if (resolved.provider === 'openrouter') {
+              const orApiKey = config.openrouterApiKey
+              if (!orApiKey) {
+                throw new Error('OpenRouter API key not configured. Set OPENROUTER_API_KEY in your environment.')
+              }
+
+              const openrouter = new OpenAI({
+                apiKey: orApiKey,
+                baseURL: 'https://openrouter.ai/api/v1',
+              })
+
+              const startTime = Date.now()
+
+              const orStream = await openrouter.chat.completions.create({
+                model: resolved.apiModel,
+                messages: chatMessages as any,
+                stream: true,
+              }, {
+                signal: abortController.signal,
+              })
+
+              let chunkCount = 0
+              try {
+                for await (const chunk of orStream) {
+                  chunkCount++
+                  const content = chunk.choices[0]?.delta?.content || ''
+
+                  if (content) {
+                    fullResponse += content
+
+                    if (Date.now() - lastDbWrite > DB_WRITE_INTERVAL) {
+                      await db.update(messages)
+                        .set({ content: fullResponse })
+                        .where(eq(messages.id, assistantMessageId))
+                      lastDbWrite = Date.now()
+                    }
+
+                    try {
+                      if (!clientDisconnected) {
+                        controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+                      }
+                    } catch (e) {
+                      if ((e as Error)?.message?.includes('closed')) {
+                        console.log('🔌 Client stream closed, but continuing OpenRouter generation in background')
+                        clientDisconnected = true
+                      } else {
+                        throw e
+                      }
+                    }
+                  }
+                }
+              } catch (error) {
+                if (error instanceof Error && error.name === 'AbortError') {
+                  console.log('🛑 OpenRouter stream aborted by user.')
+                  throw error
+                }
+                console.error('❌ OpenRouter stream error:', error)
+                throw error
+              }
+
+              if (abortController.signal.aborted) {
+                throw new Error('Stream aborted by user action.')
+              }
+
+              const endTime = Date.now()
+              console.log('✅ OpenRouter request completed:', {
+                totalTime: endTime - startTime + 'ms',
+                totalChunks: chunkCount,
+                responseLength: fullResponse.length,
+              })
+
             } else {
               const groq = new Groq({
                 apiKey: config.groqApiKey
               })
 
-              // Check periodically if client disconnected – the same shared controller is used
               const abortInterval = setInterval(() => {
                 if (clientDisconnected) {
                   console.log('🛑 Client disconnected, aborting Groq request')

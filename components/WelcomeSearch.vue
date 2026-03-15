@@ -118,6 +118,7 @@ import { Button } from '@/components/ui/button'
 import { Paperclip, Image, FileText, X } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { validateAttachment } from '@/lib/attachmentRules'
+import { DEFAULT_MODEL_ID } from '@/lib/models/registry'
 
 interface UploadedAttachment {
   id: string
@@ -139,7 +140,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
   isStreaming: false,
-  currentModel: 'gpt-5-mini-2025-08-07'
+  currentModel: DEFAULT_MODEL_ID
 })
 
 const emit = defineEmits<{
@@ -185,7 +186,7 @@ async function handleFileChange(event: Event) {
   if (!input.files) return
   const files = Array.from(input.files)
 
-  const model = props.currentModel || 'gpt-5-mini-2025-08-07'
+  const model = props.currentModel || DEFAULT_MODEL_ID
 
   for (const file of files) {
     const validationErr = validateAttachment(model, { mimeType: file.type, size: file.size })

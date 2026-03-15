@@ -72,6 +72,73 @@
               </div>
             </div>
 
+            <!-- Models Tab -->
+            <div v-else-if="activeTab === 'models'" key="models" class="space-y-6">
+              <div>
+                <h3 class="text-lg font-medium mb-4">Model Preferences</h3>
+
+                <!-- Pinned Models -->
+                <div class="space-y-2 mb-6">
+                  <label class="text-sm font-medium">Pinned Models</label>
+                  <p class="text-xs text-muted-foreground mb-2">Pinned models appear at the top of the model picker.</p>
+                  <div v-if="prefs.pinned.length === 0" class="text-sm text-muted-foreground italic">No pinned models yet.</div>
+                  <div v-else class="space-y-1">
+                    <div
+                      v-for="id in prefs.pinned"
+                      :key="'pin-' + id"
+                      class="flex items-center justify-between px-3 py-2 rounded-md border border-border/40"
+                    >
+                      <div class="flex items-center gap-2 text-sm">
+                        <Icon :name="getModel(id) ? getProviderIcon(getModel(id)!.provider) : 'lucide:cpu'" class="w-4 h-4 text-muted-foreground" />
+                        {{ getModelLabel(id) }}
+                      </div>
+                      <button @click="togglePin(id)" class="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Favorite Models -->
+                <div class="space-y-2 mb-6">
+                  <label class="text-sm font-medium">Favorite Models</label>
+                  <p class="text-xs text-muted-foreground mb-2">Your starred models for quick access.</p>
+                  <div v-if="prefs.favorites.length === 0" class="text-sm text-muted-foreground italic">No favorite models yet. Star models from the model picker.</div>
+                  <div v-else class="space-y-1">
+                    <div
+                      v-for="id in prefs.favorites"
+                      :key="'fav-' + id"
+                      class="flex items-center justify-between px-3 py-2 rounded-md border border-border/40"
+                    >
+                      <div class="flex items-center gap-2 text-sm">
+                        <Icon name="lucide:star" class="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                        {{ getModelLabel(id) }}
+                      </div>
+                      <button @click="removeFavorite(id)" class="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Custom Model ID (Advanced) -->
+                <div class="space-y-2 pt-4 border-t">
+                  <label class="text-sm font-medium">Custom Model ID</label>
+                  <p class="text-xs text-muted-foreground">For advanced users. Enter a model ID to route via OpenRouter.</p>
+                  <input
+                    v-model="customModelInput"
+                    type="text"
+                    placeholder="e.g. openai/gpt-4o or mistralai/mistral-large-2"
+                    class="w-full px-3 py-2 rounded-md border border-border bg-background/20 backdrop-blur-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    @input="validateCustomModel"
+                  />
+                  <p v-if="customModelWarning" class="text-xs text-amber-600 dark:text-amber-400">
+                    {{ customModelWarning }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <!-- Background Tab -->
             <div v-else-if="activeTab === 'background'" key="background" class="space-y-6">
               <div>
@@ -356,6 +423,9 @@ import { Button } from '@/components/ui/button'
 import { toast } from 'vue-sonner'
 import { computed, ref, watch, onMounted } from 'vue'
 import { useSettings } from '~/composables/useSettings'
+import { useModelPreferences } from '~/composables/useModelPreferences'
+import { getModel, getProviderIcon, getModelLabel, isKnownModelId } from '~/lib/models/helpers'
+import { Badge } from '@/components/ui/badge'
 import { Check, Archive, Download, Trash2, User, KeyRound, LogOut } from 'lucide-vue-next'
 
 interface User {
@@ -387,6 +457,7 @@ const activeTab = ref('general')
 
 const tabs = [
   { id: 'general', label: 'General', icon: 'lucide:settings' },
+  { id: 'models', label: 'Models', icon: 'lucide:cpu' },
   { id: 'background', label: 'Background', icon: 'lucide:picture-in-picture' },
   { id: 'chat', label: 'Chat Management', icon: 'lucide:message-circle' },
   { id: 'shortcuts', label: 'Shortcuts', icon: 'lucide:keyboard' },
@@ -394,6 +465,23 @@ const tabs = [
 ]
 
 const { settings } = useSettings()
+const { prefs, removeFavorite, togglePin, isPinned } = useModelPreferences()
+
+const customModelInput = ref(prefs.customModelId || '')
+const customModelWarning = ref('')
+
+function validateCustomModel() {
+  const id = customModelInput.value.trim()
+  if (!id) {
+    customModelWarning.value = ''
+    prefs.customModelId = ''
+    return
+  }
+  prefs.customModelId = id
+  customModelWarning.value = isKnownModelId(id)
+    ? ''
+    : 'This model ID is not in the registry. It will be routed via OpenRouter if available.'
+}
 
 // Dialog states
 const showChangeNameDialog = ref(false)

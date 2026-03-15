@@ -30,8 +30,8 @@
 </template>
 
 <script setup lang="ts">
-import ModelSelector from '@/components/ModelSelector.vue'
 import ChatHeader from '@/components/ChatHeader.vue'
+import { DEFAULT_MODEL_ID } from '@/lib/models/registry'
 
 interface User {
   id: string
@@ -60,7 +60,7 @@ const chatInterfaceRef = ref()
 const inputMessage = ref('')
 const isLoading = ref(false)
 const isStreaming = ref(false)
-const selectedModel = ref('gpt-5-mini-2025-08-07')
+const selectedModel = ref(DEFAULT_MODEL_ID)
 const { getPendingMessage } = usePendingMessage()
 
 onMounted(async () => {

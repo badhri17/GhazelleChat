@@ -7,21 +7,13 @@ import Anthropic from '@anthropic-ai/sdk'
 import { db } from '~/server/db'
 import { conversations, messages } from '~/server/db/schema'
 import { lucia } from '~/server/plugins/lucia'
+import { resolveProvider } from '~/server/utils/modelRouter'
+import { DEFAULT_MODEL_ID } from '~/lib/models/registry'
 
 const resumeSchema = z.object({
   messageId: z.string(),
   conversationId: z.string(),
-  model: z.enum([
-    'gpt-5.4-2026-03-05',
-    'gpt-5-mini-2025-08-07',
-    'claude-3-5-sonnet-latest',
-    'claude-sonnet-4-6',
-    'claude-opus-4-6',
-    'llama-3.1-70b-versatile',
-    'gemini-3.1-pro-preview',
-    'gemini-3-flash-preview',
-    'gemini-3.1-flash-lite-preview'
-  ]).default('gpt-5-mini-2025-08-07')
+  model: z.string().min(1).default(DEFAULT_MODEL_ID),
 })
 
 interface ChatMessage {
@@ -135,8 +127,9 @@ export default defineEventHandler(async (event) => {
         }
 
         try {
-          // Continue generation based on model type
-          if (model.startsWith('gpt-')) {
+          const resolved = resolveProvider(model)
+
+          if (resolved.provider === 'openai') {
             const openai = new OpenAI({
               apiKey: config.openaiApiKey
             })
@@ -197,14 +190,13 @@ export default defineEventHandler(async (event) => {
               }
             }
 
-          } else if (model.startsWith('claude-')) {
-            // Similar implementation for Claude...
+          } else if (resolved.provider === 'anthropic') {
             console.log('🔄 Claude resume not yet implemented')
-          } else if (model.startsWith('gemini-')) {
-            // Similar implementation for Gemini...
+          } else if (resolved.provider === 'google') {
             console.log('🔄 Gemini resume not yet implemented')
+          } else if (resolved.provider === 'openrouter') {
+            console.log('🔄 OpenRouter resume not yet implemented')
           } else {
-            // Similar implementation for Groq...
             console.log('🔄 Groq resume not yet implemented')
           }
 

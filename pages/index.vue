@@ -39,6 +39,7 @@ import {
 import ChatHeader from '@/components/ChatHeader.vue'
 import { ref } from 'vue'
 import WelcomeSearch from '@/components/WelcomeSearch.vue'
+import { DEFAULT_MODEL_ID } from '@/lib/models/registry'
 
 interface User {
   id: string
@@ -66,7 +67,7 @@ const conversations = ref(conversationsData.value?.conversations?.map((conv: any
   createdAt: new Date(conv.createdAt),
   updatedAt: new Date(conv.updatedAt)
 })) || [])
-const selectedModel = ref('gpt-5-mini-2025-08-07')
+const selectedModel = ref(DEFAULT_MODEL_ID)
 const queryMessage = ref('')
 
 async function refreshConversations() {

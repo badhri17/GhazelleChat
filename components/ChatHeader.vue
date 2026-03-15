@@ -5,7 +5,7 @@
       <h2 class="font-semibold mr-2 text-base">
         {{ title }}
       </h2>
-      <ModelSelector :model-value="selectedModel" @update:model-value="emit('update:selectedModel', $event)" />
+      <ModelPicker :model-value="selectedModel" @update:model-value="emit('update:selectedModel', $event)" />
     </div>
 
     <div class="flex items-center gap-4">
@@ -61,7 +61,7 @@
 
 <script setup lang="ts">
 import { SidebarTrigger } from '@/components/ui/sidebar'
-import ModelSelector from '@/components/ModelSelector.vue'
+import ModelPicker from '@/components/ModelPicker.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 
 import { Button } from '@/components/ui/button'

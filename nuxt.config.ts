@@ -14,6 +14,7 @@ export default defineNuxtConfig({
     groqApiKey: process.env.GROQ_API_KEY,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     geminiApiKey: process.env.GOOGLE_API_KEY,
+    openrouterApiKey: process.env.OPENROUTER_API_KEY,
     authSecret: process.env.AUTH_SECRET,
   },
   vite: {
