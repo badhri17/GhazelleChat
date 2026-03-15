@@ -53,6 +53,17 @@
             />
           </CommandGroup>
 
+          <!-- Custom models added by user -->
+          <CommandGroup v-if="customModelsGroup.length > 0" heading="Custom Models">
+            <ModelPickerItem
+              v-for="m in customModelsGroup"
+              :key="'custom-' + m.id"
+              :model="m"
+              :selected="m.id === modelValue"
+              @select="selectModel(m.id)"
+            />
+          </CommandGroup>
+
           <CommandSeparator />
           <CommandGroup>
             <CommandItem value="__browse_more__" class="justify-center text-muted-foreground" @select="openBrowseDrawer">
@@ -90,36 +101,50 @@ import type { ModelEntry } from '@/lib/models/types'
 const props = defineProps<{ modelValue: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
-const { prefs, addRecent } = useModelPreferences()
+const { prefs, addRecent, addCustomModel, makeCustomEntry } = useModelPreferences()
 const open = ref(false)
 const drawerOpen = ref(false)
 
-const currentLabel = computed(() => getModelLabel(props.modelValue))
+function resolveEntry(id: string): ModelEntry | undefined {
+  return getModel(id) ?? (prefs.customModels.includes(id) ? makeCustomEntry(id) : undefined)
+}
+
+const currentLabel = computed(() => {
+  const entry = resolveEntry(props.modelValue)
+  return entry ? entry.label : props.modelValue
+})
 const currentIcon = computed(() => {
-  const m = getModel(props.modelValue)
-  return m ? getProviderIcon(m.provider) : 'lucide:cpu'
+  const entry = resolveEntry(props.modelValue)
+  return entry ? getProviderIcon(entry.provider) : 'lucide:globe'
 })
 
 const groupedModels = computed(() => getGroupedModels())
 
+const customModelsGroup = computed(() => {
+  return prefs.customModels
+    .filter(id => !getModel(id))
+    .map(id => makeCustomEntry(id))
+})
+
 const pinnedModels = computed(() => {
-  const enabled = getEnabledModels()
   return prefs.pinned
-    .map(id => enabled.find(m => m.id === id))
+    .map(id => resolveEntry(id))
     .filter((m): m is ModelEntry => !!m)
 })
 
 const recentModels = computed(() => {
-  const enabled = getEnabledModels()
   const pinnedSet = new Set(prefs.pinned)
   return prefs.recents
     .filter(id => !pinnedSet.has(id) && id !== props.modelValue)
     .slice(0, 3)
-    .map(id => enabled.find(m => m.id === id))
+    .map(id => resolveEntry(id))
     .filter((m): m is ModelEntry => !!m)
 })
 
 function selectModel(id: string) {
+  if (!getModel(id)) {
+    addCustomModel(id)
+  }
   emit('update:modelValue', id)
   addRecent(id)
   open.value = false

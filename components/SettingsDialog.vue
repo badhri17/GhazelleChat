@@ -121,17 +121,41 @@
                   </div>
                 </div>
 
-                <!-- Custom Model ID (Advanced) -->
+                <!-- Custom Models (Advanced) -->
                 <div class="space-y-2 pt-4 border-t">
-                  <label class="text-sm font-medium">Custom Model ID</label>
-                  <p class="text-xs text-muted-foreground">For advanced users. Enter a model ID to route via OpenRouter.</p>
-                  <input
-                    v-model="customModelInput"
-                    type="text"
-                    placeholder="e.g. openai/gpt-4o or mistralai/mistral-large-2"
-                    class="w-full px-3 py-2 rounded-md border border-border bg-background/20 backdrop-blur-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    @input="validateCustomModel"
-                  />
+                  <label class="text-sm font-medium">Custom Models</label>
+                  <p class="text-xs text-muted-foreground">Models you've added manually. Routed via OpenRouter.</p>
+                  <div v-if="prefs.customModels.length > 0" class="space-y-1 mb-3">
+                    <div
+                      v-for="id in prefs.customModels"
+                      :key="'custom-' + id"
+                      class="flex items-center justify-between px-3 py-2 rounded-md border border-border/40"
+                    >
+                      <div class="flex items-center gap-2 text-sm">
+                        <Icon name="lucide:globe" class="w-4 h-4 text-muted-foreground" />
+                        <span class="truncate">{{ id }}</span>
+                      </div>
+                      <button @click="removeCustomModel(id)" class="text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                  <div class="flex gap-2">
+                    <input
+                      v-model="customModelInput"
+                      type="text"
+                      placeholder="e.g. openai/gpt-4o or mistralai/mistral-large-2"
+                      class="flex-1 px-3 py-2 rounded-md border border-border bg-background/20 backdrop-blur-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      @keyup.enter="handleAddCustomModel"
+                    />
+                    <button
+                      @click="handleAddCustomModel"
+                      :disabled="!customModelInput.trim()"
+                      class="px-3 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
                   <p v-if="customModelWarning" class="text-xs text-amber-600 dark:text-amber-400">
                     {{ customModelWarning }}
                   </p>
@@ -465,22 +489,25 @@ const tabs = [
 ]
 
 const { settings } = useSettings()
-const { prefs, removeFavorite, togglePin, isPinned } = useModelPreferences()
+const { prefs, removeFavorite, togglePin, isPinned, addCustomModel, removeCustomModel } = useModelPreferences()
 
-const customModelInput = ref(prefs.customModelId || '')
+const customModelInput = ref('')
 const customModelWarning = ref('')
 
-function validateCustomModel() {
+function handleAddCustomModel() {
   const id = customModelInput.value.trim()
-  if (!id) {
-    customModelWarning.value = ''
-    prefs.customModelId = ''
+  if (!id) return
+  if (isKnownModelId(id)) {
+    customModelWarning.value = 'This model is already in the built-in registry.'
     return
   }
-  prefs.customModelId = id
-  customModelWarning.value = isKnownModelId(id)
-    ? ''
-    : 'This model ID is not in the registry. It will be routed via OpenRouter if available.'
+  if (prefs.customModels.includes(id)) {
+    customModelWarning.value = 'This model has already been added.'
+    return
+  }
+  addCustomModel(id)
+  customModelInput.value = ''
+  customModelWarning.value = ''
 }
 
 // Dialog states

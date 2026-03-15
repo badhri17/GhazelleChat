@@ -1,4 +1,5 @@
 import { reactive, toRaw, watch } from 'vue'
+import type { ModelEntry } from '@/lib/models/types'
 
 const MAX_RECENTS = 5
 
@@ -6,6 +7,7 @@ interface ModelPreferences {
   favorites: string[]
   recents: string[]
   pinned: string[]
+  customModels: string[]
   customModelId: string
 }
 
@@ -13,6 +15,7 @@ const defaults: ModelPreferences = {
   favorites: [],
   recents: [],
   pinned: [],
+  customModels: [],
   customModelId: '',
 }
 
@@ -73,6 +76,41 @@ export function useModelPreferences() {
     }
   }
 
+  function addCustomModel(id: string) {
+    if (!prefs.customModels.includes(id)) {
+      prefs.customModels.push(id)
+    }
+  }
+
+  function removeCustomModel(id: string) {
+    const idx = prefs.customModels.indexOf(id)
+    if (idx !== -1) prefs.customModels.splice(idx, 1)
+  }
+
+  function isCustomModel(id: string): boolean {
+    return prefs.customModels.includes(id)
+  }
+
+  /** Build a synthetic ModelEntry for a custom (non-registry) model ID */
+  function makeCustomEntry(id: string): ModelEntry {
+    const shortLabel = id.includes('/') ? id.split('/').pop()! : id
+    return {
+      id,
+      label: shortLabel,
+      provider: 'openrouter',
+      routeType: 'openrouter',
+      apiModel: id,
+      category: 'experimental',
+      badges: ['Custom'],
+      capabilities: ['text'],
+      enabled: true,
+      featured: false,
+      pricingHint: undefined,
+      speedHint: undefined,
+      contextWindow: undefined,
+    }
+  }
+
   return {
     prefs,
     isFavorite,
@@ -82,5 +120,9 @@ export function useModelPreferences() {
     isPinned,
     togglePin,
     addRecent,
+    addCustomModel,
+    removeCustomModel,
+    isCustomModel,
+    makeCustomEntry,
   }
 }

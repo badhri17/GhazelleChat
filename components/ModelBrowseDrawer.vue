@@ -1,16 +1,9 @@
 <template>
   <Sheet v-model:open="isOpen">
-    <SheetContent side="right" class="w-full sm:w-[480px] p-0 flex flex-col">
-      <SheetHeader class="px-6 pt-6 pb-4 border-b shrink-0">
+    <SheetContent side="right" class="w-full sm:w-[480px] p-0 flex flex-col bg-background/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/85">
+      <SheetHeader class="px-6 pt-6 pb-4 border-b border-border/70 bg-background/70 shrink-0">
         <SheetDescription class="sr-only">Search, filter and select AI models</SheetDescription>
-        <div class="flex items-center justify-between">
-          <h2 class="text-lg font-semibold">Browse Models</h2>
-          <SheetClose as-child>
-            <button class="rounded-full p-1 hover:bg-muted transition-colors">
-              <Icon name="lucide:x" class="w-4 h-4" />
-            </button>
-          </SheetClose>
-        </div>
+        <h2 class="text-lg font-semibold">Browse Models</h2>
 
         <!-- Search -->
         <div class="relative mt-3">
@@ -19,7 +12,7 @@
             v-model="search"
             type="text"
             placeholder="Search models..."
-            class="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-border bg-background/40 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            class="w-full pl-9 pr-3 py-2 text-sm rounded-md border border-border/80 bg-background/90 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
         </div>
 
@@ -30,10 +23,10 @@
             :key="p.id"
             @click="toggleProviderFilter(p.id)"
             :class="[
-              'inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-full border transition-all duration-150',
+              'inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-full border bg-background/80 shadow-sm transition-all duration-150',
               activeProviders.has(p.id)
-                ? 'bg-primary/10 border-primary/30 text-primary'
-                : 'border-border/50 text-muted-foreground hover:bg-muted/50'
+                ? 'bg-primary/12 border-primary/40 text-primary'
+                : 'border-border/70 text-foreground/80 hover:bg-accent hover:text-accent-foreground'
             ]"
           >
             <Icon :name="p.icon" class="w-3 h-3" />
@@ -48,10 +41,10 @@
             :key="cap"
             @click="toggleCapFilter(cap)"
             :class="[
-              'px-2.5 py-1 text-xs rounded-full border transition-all duration-150',
+              'px-2.5 py-1 text-xs rounded-full border bg-background/80 shadow-sm transition-all duration-150',
               activeCaps.has(cap)
-                ? 'bg-primary/10 border-primary/30 text-primary'
-                : 'border-border/50 text-muted-foreground hover:bg-muted/50'
+                ? 'bg-primary/12 border-primary/40 text-primary'
+                : 'border-border/70 text-foreground/80 hover:bg-accent hover:text-accent-foreground'
             ]"
           >
             {{ cap }}
@@ -61,7 +54,7 @@
 
       <!-- Model list -->
       <ScrollArea class="flex-1 min-h-0">
-        <div class="px-4 py-2 space-y-1">
+        <div class="px-4 py-3 space-y-2">
           <p v-if="filteredModels.length === 0" class="text-sm text-muted-foreground text-center py-8">
             No models match your filters.
           </p>
@@ -71,13 +64,13 @@
             :key="m.id"
             @click="handleSelect(m.id)"
             :class="[
-              'w-full flex items-start gap-3 p-3 rounded-lg text-left transition-all duration-150',
+              'w-full flex items-start gap-3 p-3 rounded-xl text-left border shadow-sm transition-all duration-150',
               m.id === currentModel
-                ? 'bg-primary/8 border border-primary/20'
-                : 'hover:bg-muted/50 border border-transparent'
+                ? 'bg-primary/10 border-primary/35 ring-1 ring-primary/15'
+                : 'bg-background/72 border-border/60 hover:bg-accent/70 hover:border-border'
             ]"
           >
-            <Icon :name="getProviderIcon(m.provider)" class="w-5 h-5 shrink-0 mt-0.5 text-muted-foreground" />
+            <Icon :name="getProviderIcon(m.provider)" class="w-5 h-5 shrink-0 mt-0.5 text-foreground/70" />
 
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-1.5 flex-wrap">
@@ -92,7 +85,7 @@
                 </Badge>
                 <span
                   v-if="m.routeType === 'openrouter'"
-                  class="text-[10px] text-muted-foreground/60"
+                  class="text-[10px] text-muted-foreground"
                 >
                   via OpenRouter
                 </span>
@@ -108,7 +101,7 @@
             <div class="flex items-center gap-1 shrink-0">
               <button
                 @click.stop="toggleFavorite(m.id)"
-                class="p-1 rounded hover:bg-muted transition-colors"
+                class="p-1 rounded-md hover:bg-accent transition-colors"
                 :title="isFavorite(m.id) ? 'Remove from favorites' : 'Add to favorites'"
               >
                 <Icon
@@ -119,7 +112,7 @@
               </button>
               <button
                 @click.stop="togglePin(m.id)"
-                class="p-1 rounded hover:bg-muted transition-colors"
+                class="p-1 rounded-md hover:bg-accent transition-colors"
                 :title="isPinned(m.id) ? 'Unpin' : 'Pin to top'"
               >
                 <Icon
@@ -134,7 +127,7 @@
       </ScrollArea>
 
       <!-- Footer with custom model input -->
-      <div class="border-t px-6 py-4 shrink-0">
+      <div class="border-t border-border/70 bg-background/70 px-6 py-4 shrink-0">
         <button
           v-if="!showCustomInput"
           @click="showCustomInput = true"
@@ -149,7 +142,7 @@
               v-model="customId"
               type="text"
               placeholder="e.g. openai/gpt-4o"
-              class="flex-1 px-3 py-1.5 text-sm rounded-md border border-border bg-background/40 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              class="flex-1 px-3 py-1.5 text-sm rounded-md border border-border/80 bg-background/90 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
             <button
               @click="submitCustomModel"
@@ -171,7 +164,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import {
-  Sheet, SheetContent, SheetHeader, SheetClose, SheetDescription,
+  Sheet, SheetContent, SheetHeader, SheetDescription,
 } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
@@ -191,7 +184,7 @@ const isOpen = computed({
   set: (v) => emit('update:open', v),
 })
 
-const { isFavorite, toggleFavorite, isPinned, togglePin } = useModelPreferences()
+const { prefs, isFavorite, toggleFavorite, isPinned, togglePin, addCustomModel, makeCustomEntry } = useModelPreferences()
 
 const search = ref('')
 const activeProviders = ref(new Set<Provider>())
@@ -219,7 +212,12 @@ function toggleCapFilter(c: Capability) {
 }
 
 const filteredModels = computed(() => {
-  let models = getAllModels()
+  const registryModels = getAllModels()
+  const registryIds = new Set(registryModels.map(m => m.id))
+  const customEntries = prefs.customModels
+    .filter(id => !registryIds.has(id))
+    .map(id => makeCustomEntry(id))
+  let models = [...registryModels, ...customEntries]
   const term = search.value.toLowerCase()
 
   if (term) {
@@ -258,9 +256,13 @@ function handleSelect(id: string) {
 function submitCustomModel() {
   const id = customId.value.trim()
   if (!id) return
+  addCustomModel(id)
   emit('select', id)
   customId.value = ''
   showCustomInput.value = false
   isOpen.value = false
 }
 </script>
+
+
+
