@@ -11,24 +11,21 @@ export interface ResolvedProvider {
 
 /**
  * Resolves a model ID to its provider and routing information.
- * Known registry models get their exact provider; unknown IDs
- * fall back to OpenRouter routing.
+ * Only models present in the registry are accepted; unknown IDs are
+ * rejected with a 400 so arbitrary strings can't be billed to OpenRouter.
+ * To use a custom OpenRouter model, add it to lib/models/registry.ts.
  */
 export function resolveProvider(modelId: string): ResolvedProvider {
   const entry = modelMap.get(modelId)
 
-  if (entry) {
-    return {
-      provider: entry.provider,
-      routeType: entry.routeType,
-      apiModel: entry.apiModel,
-    }
+  if (!entry) {
+    throw createError({ statusCode: 400, statusMessage: 'Unknown model ID' })
   }
 
   return {
-    provider: 'openrouter',
-    routeType: 'openrouter',
-    apiModel: modelId,
+    provider: entry.provider,
+    routeType: entry.routeType,
+    apiModel: entry.apiModel,
   }
 }
 

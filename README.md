@@ -153,6 +153,28 @@ Responses are JSON or `text/event-stream` when streaming.
 
 ---
 
+## 🔒 Security & Operational Notes
+
+- **Rate limiting** is enabled on auth, chat, and upload endpoints using a simple
+  in-memory limiter (`server/utils/rateLimit.ts`). This is per-instance only —
+  multi-instance or serverless deployments should back it with a shared store
+  (e.g. Redis) or an edge/CDN rate limiter.
+- **Uploads** are written to `public/uploads` and served as static files. They are
+  referenced by unguessable 21-char nanoid filenames but are **not access-controlled**
+  — anyone with the URL can fetch them (this also lets provider vision APIs fetch
+  images directly). On serverless/multi-instance hosts the filesystem is ephemeral
+  and not shared. For production, use object storage (S3/R2) with per-user scoping
+  and signed URLs.
+- **Model IDs** in `lib/models/registry.ts` are validated against the registry;
+  unknown IDs are rejected with a 400. Provider model IDs change over time — if a
+  model stops working, update the registry. To use a custom OpenRouter model, add
+  an entry there rather than passing an arbitrary ID.
+- **Resumable streams** are supported across all configured providers (OpenAI,
+  Anthropic, Gemini, Groq, OpenRouter). Resume re-prompts the model to continue
+  from the partial response, so exact continuity is best-effort.
+
+---
+
 ## ☁️ Deployment
 
 Ghazelle Chat is optimised for **Vercel Edge Functions** but will happily run on any Node 18+ environment.
@@ -172,19 +194,13 @@ We welcome and appreciate contributions of all kinds!  If you plan to add a new 
 1. Open an issue → discuss the proposed change or bug fix.
 2. Fork the repo and create a descriptive branch name (feature/pagination, fix/input-focus, …).
 3. Keep the pull request focused and include a clear description.
-4. Ensure pnpm lint (and pnpm test, coming soon) pass before pushing.
-5. Update the documentation and .env.example if your change introduces new environment variables.
+4. Update the documentation and .env.example if your change introduces new environment variables.
 
-
-Ensure pnpm lint (and pnpm test, coming soon) pass before pushing.
-
-Update the documentation and .env.example if your change introduces new environment variables.
+> ℹ️ There is no lint or test script yet. If you add one, wire it into `package.json` and update this section.
 
 📌 Roadmap / Help‑Wanted
 
 - Message pagination & infinite scroll
-
-- Rate‑limiting middleware for public API routes
 
 - Built‑in web search tool (browser with citations)
 

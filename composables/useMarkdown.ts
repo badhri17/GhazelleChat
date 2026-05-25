@@ -1,5 +1,6 @@
 import { marked } from 'marked'
 import hljs from 'highlight.js'
+import DOMPurify from 'isomorphic-dompurify'
 
 export const useMarkdown = () => {
   // Configure marked with highlight.js  
@@ -16,11 +17,10 @@ export const useMarkdown = () => {
       try {
         const highlighted = hljs.highlight(text, { language: lang }).value
         return `
-          <div class="code-block-wrapper" data-code="${btoa(text)}">
+          <div class="code-block-wrapper" data-code="${btoa(unescape(encodeURIComponent(text)))}">
             <pre><code class="hljs language-${lang}" id="${codeId}">${highlighted}</code></pre>
-            <button 
-              class="code-copy-btn" 
-              onclick="copyCodeBlock('${codeId}')"
+            <button
+              class="code-copy-btn"
               title="Copy code"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -35,11 +35,10 @@ export const useMarkdown = () => {
     }
     const autoHighlighted = hljs.highlightAuto(text)
     return `
-      <div class="code-block-wrapper" data-code="${btoa(text)}">
+      <div class="code-block-wrapper" data-code="${btoa(unescape(encodeURIComponent(text)))}">
         <pre><code class="hljs" id="${codeId}">${autoHighlighted.value}</code></pre>
-        <button 
-          class="code-copy-btn" 
-          onclick="copyCodeBlock('${codeId}')"
+        <button
+          class="code-copy-btn"
           title="Copy code"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -64,7 +63,10 @@ export const useMarkdown = () => {
 
   const parseMarkdown = (content: string): string => {
     try {
-      return marked(content) as string
+      const rawHtml = marked(content) as string
+      // Sanitize to neutralize any unsafe HTML the model might emit (XSS).
+      // data-* attributes (used by the code-copy button) are kept by default.
+      return DOMPurify.sanitize(rawHtml)
     } catch (error) {
       console.error('Markdown parsing failed:', error)
       // Fallback to escaped HTML if parsing fails

@@ -5,6 +5,8 @@ import { nanoid } from 'nanoid'
 import { db } from '~/server/db'
 import { users } from '~/server/db/schema'
 import { lucia } from '~/server/plugins/lucia'
+import { enforceRateLimit, getClientIp } from '~/server/utils/rateLimit'
+import { BCRYPT_ROUNDS } from '~/server/utils/security'
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -13,13 +15,16 @@ const registerSchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  enforceRateLimit(`register:${getClientIp(event)}`, 3, 60_000)
+
   try {
     const body = await readBody(event)
     const { email, fullName, password } = registerSchema.parse(body)
+    const normalizedEmail = email.trim().toLowerCase()
 
     // Check if user already exists
-    const existingUser = await db.select().from(users).where(eq(users.email, email)).limit(1)
-    
+    const existingUser = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1)
+
     if (existingUser.length > 0) {
       throw createError({
         statusCode: 400,
@@ -28,13 +33,13 @@ export default defineEventHandler(async (event) => {
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12)
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS)
 
     // Create user
     const userId = nanoid()
     await db.insert(users).values({
       id: userId,
-      email,
+      email: normalizedEmail,
       fullName,
       hashedPassword,
       createdAt: new Date(),
@@ -49,7 +54,7 @@ export default defineEventHandler(async (event) => {
       success: true,
       user: {
         id: userId,
-        email,
+        email: normalizedEmail,
         fullName
       }
     }

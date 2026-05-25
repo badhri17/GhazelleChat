@@ -1,7 +1,7 @@
 import { eq, asc } from 'drizzle-orm'
 import { db } from '~/server/db'
 import { messages, attachments } from '~/server/db/schema'
-import { lucia } from '~/server/plugins/lucia'
+import { requireUser, getOwnedConversation } from '~/server/utils/auth'
 import type { Message, Attachment } from '~/server/db/schema'
 
 interface MessageWithAttachments extends Message {
@@ -9,22 +9,7 @@ interface MessageWithAttachments extends Message {
 }
 
 export default defineEventHandler(async (event) => {
-  // Verify authentication
-  const sessionId = getCookie(event, lucia.sessionCookieName)
-  if (!sessionId) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Unauthorized'
-    })
-  }
-
-  const { session, user } = await lucia.validateSession(sessionId)
-  if (!session) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Invalid session'
-    })
-  }
+  const user = await requireUser(event)
 
   const conversationId = getRouterParam(event, 'id')
   if (!conversationId) {
@@ -33,6 +18,9 @@ export default defineEventHandler(async (event) => {
       statusMessage: 'Conversation ID required'
     })
   }
+
+  // Ensure the conversation belongs to the authenticated user.
+  await getOwnedConversation(conversationId, user.id)
 
   const results = await db
     .select({

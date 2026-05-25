@@ -1,4 +1,4 @@
-import { IncomingAttachment } from '~/server/utils/attachments'
+import type { IncomingAttachment } from '~/server/utils/attachments'
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system'

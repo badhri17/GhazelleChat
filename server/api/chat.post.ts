@@ -8,11 +8,13 @@ import { db } from '~/server/db'
 import { conversations, messages } from '~/server/db/schema'
 import { lucia } from '~/server/plugins/lucia'
 import { setAbortController, removeAbortController } from '~/server/utils/abortControllers'
-import { validateIncomingAttachments, linkAttachmentsToMessage, IncomingAttachment, buildVendorAttachmentParts } from '~/server/utils/attachments'
+import { validateIncomingAttachments, linkAttachmentsToMessage, type IncomingAttachment, buildVendorAttachmentParts } from '~/server/utils/attachments'
 import { buildAnthropicMessages } from '~/server/utils/anthropic'
 import { buildOpenAIMessages } from '~/server/utils/openai'
 import { buildGeminiMessages } from '~/server/utils/gemini'
 import { resolveProvider } from '~/server/utils/modelRouter'
+import { enforceRateLimit } from '~/server/utils/rateLimit'
+import { getOwnedConversation } from '~/server/utils/auth'
 import { DEFAULT_MODEL_ID } from '~/lib/models/registry'
 
 const chatSchema = z.object({
@@ -54,6 +56,8 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    enforceRateLimit(`chat:${user.id}`, 20, 60_000)
+
     const body = await readBody(event)
     const { message, conversationId, model, attachments, systemPrompt } = chatSchema.parse(body)
 
@@ -67,7 +71,7 @@ export default defineEventHandler(async (event) => {
     if (!currentConversationId) {
       currentConversationId = nanoid()
       const title = message.slice(0, 50) + (message.length > 50 ? '...' : '')
-      
+
       await db.insert(conversations).values({
         id: currentConversationId,
         userId: user.id,
@@ -75,6 +79,9 @@ export default defineEventHandler(async (event) => {
         createdAt: new Date(),
         updatedAt: new Date()
       })
+    } else {
+      // Ensure the target conversation belongs to the authenticated user.
+      await getOwnedConversation(currentConversationId, user.id)
     }
 
     const userMessageId = nanoid()
@@ -641,6 +648,14 @@ export default defineEventHandler(async (event) => {
                   const content = chunk.choices[0]?.delta?.content || ''
                   if (content) {
                     fullResponse += content
+
+                    if (Date.now() - lastDbWrite > DB_WRITE_INTERVAL) {
+                      await db.update(messages)
+                        .set({ content: fullResponse })
+                        .where(eq(messages.id, assistantMessageId))
+                      lastDbWrite = Date.now()
+                    }
+
                     try {
                       controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
                     } catch (e) {
@@ -668,9 +683,9 @@ export default defineEventHandler(async (event) => {
 
           if (fullResponse.trim() || userManuallyAborted || generationFailed) {
             await db.update(messages)
-              .set({ 
+              .set({
                 content: fullResponse,
-                status: (userManuallyAborted || generationFailed) ? 'incomplete' : 'complete'
+                status: generationFailed ? 'error' : (userManuallyAborted ? 'incomplete' : 'complete')
               })
               .where(eq(messages.id, assistantMessageId))
 
@@ -694,8 +709,8 @@ export default defineEventHandler(async (event) => {
             }
           } else {
             if (generationFailed) {
-              // Keep the message record but mark incomplete so polling stops
-              await db.update(messages).set({ status: 'incomplete' }).where(eq(messages.id, assistantMessageId))
+              // Keep the message record but mark as error so polling stops
+              await db.update(messages).set({ status: 'error' }).where(eq(messages.id, assistantMessageId))
               console.log('🛑 Generation failed, saved empty placeholder message')
             } else {
               // Delete the empty message if truly nothing happened
@@ -713,13 +728,13 @@ export default defineEventHandler(async (event) => {
             timestamp: new Date().toISOString()
           })
 
-          // Mark message as incomplete in DB on failure
+          // Mark message as error in DB on failure
           if (assistantMessageId) {
             try {
               await db.update(messages)
-                .set({ status: 'incomplete' })
+                .set({ status: 'error' })
                 .where(eq(messages.id, assistantMessageId))
-              console.log(`💾 Marked message ${assistantMessageId} as incomplete due to generation error.`)
+              console.log(`💾 Marked message ${assistantMessageId} as error due to generation failure.`)
             } catch (dbError) {
               console.error('❌ Failed to update message status on error:', dbError)
             }

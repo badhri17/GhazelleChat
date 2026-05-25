@@ -35,7 +35,7 @@ export const messages = sqliteTable('messages', {
   role: text('role', { enum: ['user', 'assistant'] }).notNull(),
   content: text('content').notNull(),
   model: text('model'), 
-  status: text('status', { enum: ['complete', 'incomplete', 'streaming'] }).default('complete'),
+  status: text('status', { enum: ['complete', 'incomplete', 'streaming', 'error'] }).default('complete'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date()),
 }, (table) => ({
   conversationIdCreatedAtIdx: index('messages_conversation_id_created_at_idx').on(table.conversationId, table.createdAt),

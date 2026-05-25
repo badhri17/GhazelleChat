@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { db } from '~/server/db'
 import { users } from '~/server/db/schema'
 import { lucia } from '~/server/plugins/lucia'
+import { BCRYPT_ROUNDS } from '~/server/utils/security'
 
 export default defineEventHandler(async (event) => {
   const sessionId = getCookie(event, lucia.sessionCookieName)
@@ -36,7 +37,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Incorrect current password' })
   }
 
-  const hashed = await bcrypt.hash(newPassword, 10)
+  const hashed = await bcrypt.hash(newPassword, BCRYPT_ROUNDS)
   await db.update(users).set({ hashedPassword: hashed, updatedAt: new Date() }).where(eq(users.id, user.id))
 
   return { success: true }

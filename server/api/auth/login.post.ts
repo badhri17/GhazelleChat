@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { db } from '~/server/db'
 import { users } from '~/server/db/schema'
 import { lucia } from '~/server/plugins/lucia'
+import { enforceRateLimit, getClientIp } from '~/server/utils/rateLimit'
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -11,12 +12,15 @@ const loginSchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  enforceRateLimit(`login:${getClientIp(event)}`, 5, 60_000)
+
   try {
     const body = await readBody(event)
     const { email, password } = loginSchema.parse(body)
+    const normalizedEmail = email.trim().toLowerCase()
 
     // Find user by email
-    const existingUser = await db.select().from(users).where(eq(users.email, email)).limit(1)
+    const existingUser = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1)
     
     if (existingUser.length === 0) {
       throw createError({

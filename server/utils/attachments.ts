@@ -1,7 +1,7 @@
 import { db } from '~/server/db'
 import { attachments } from '~/server/db/schema'
 import { nanoid } from 'nanoid'
-import { AttachmentMetaInput, validateAttachments } from '~/lib/attachmentRules'
+import { type AttachmentMetaInput, validateAttachments } from '~/lib/attachmentRules'
 
 export interface IncomingAttachment {
   id: string // ID returned from the /api/attachments upload endpoint

@@ -4,8 +4,13 @@ import { nanoid } from 'nanoid'
 import path from 'path'
 import { validateAttachment } from '~/lib/attachmentRules'
 import { DEFAULT_MODEL_ID } from '~/lib/models/registry'
+import { requireUser } from '~/server/utils/auth'
+import { enforceRateLimit } from '~/server/utils/rateLimit'
 
 export default defineEventHandler(async (event) => {
+  const user = await requireUser(event)
+  enforceRateLimit(`attachments:${user.id}`, 20, 60_000)
+
   try {
     const form = await readMultipartFormData(event)
     if (!form) {

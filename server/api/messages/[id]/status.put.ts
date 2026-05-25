@@ -2,29 +2,14 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '~/server/db'
 import { messages } from '~/server/db/schema'
-import { lucia } from '~/server/plugins/lucia'
+import { requireUser, getOwnedMessage } from '~/server/utils/auth'
 
 const statusSchema = z.object({
-  status: z.enum(['complete', 'incomplete', 'streaming'])
+  status: z.enum(['complete', 'incomplete', 'streaming', 'error'])
 })
 
 export default defineEventHandler(async (event) => {
-  // Verify authentication
-  const sessionId = getCookie(event, lucia.sessionCookieName)
-  if (!sessionId) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Unauthorized'
-    })
-  }
-
-  const { session, user } = await lucia.validateSession(sessionId)
-  if (!session) {
-    throw createError({
-      statusCode: 401,
-      statusMessage: 'Invalid session'
-    })
-  }
+  const user = await requireUser(event)
 
   const messageId = getRouterParam(event, 'id')
   if (!messageId) {
@@ -37,7 +22,9 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { status } = statusSchema.parse(body)
 
-  // Update message status
+  // Ensure the message belongs to the authenticated user before updating.
+  await getOwnedMessage(messageId, user.id)
+
   await db.update(messages)
     .set({ status })
     .where(eq(messages.id, messageId))

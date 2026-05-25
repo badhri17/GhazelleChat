@@ -1,12 +1,11 @@
-import { eq, asc } from 'drizzle-orm'
+import { eq, asc, and } from 'drizzle-orm'
 import { z } from 'zod'
-import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
 import Groq from 'groq-sdk'
 import Anthropic from '@anthropic-ai/sdk'
 import { db } from '~/server/db'
-import { conversations, messages } from '~/server/db/schema'
-import { lucia } from '~/server/plugins/lucia'
+import { messages } from '~/server/db/schema'
+import { requireUser, getOwnedConversation } from '~/server/utils/auth'
 import { resolveProvider } from '~/server/utils/modelRouter'
 import { DEFAULT_MODEL_ID } from '~/lib/models/registry'
 
@@ -21,48 +20,55 @@ interface ChatMessage {
   content: string
 }
 
+// Merge consecutive same-role messages. Providers like Anthropic and Gemini
+// require strictly alternating roles, and our continuation prompt appends a
+// user message right after the user's original prompt.
+function coalesceRoles(msgs: ChatMessage[]): ChatMessage[] {
+  const out: ChatMessage[] = []
+  for (const m of msgs) {
+    const last = out[out.length - 1]
+    if (last && last.role === m.role) {
+      last.content += '\n\n' + m.content
+    } else {
+      out.push({ ...m })
+    }
+  }
+  return out
+}
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
 
   try {
-    // Verify authentication
-    const sessionId = getCookie(event, lucia.sessionCookieName)
-    if (!sessionId) {
-      throw createError({
-        statusCode: 401,
-        statusMessage: 'Unauthorized'
-      })
-    }
-
-    const { session, user } = await lucia.validateSession(sessionId)
-    if (!session) {
-      throw createError({
-        statusCode: 401,
-        statusMessage: 'Invalid session'
-      })
-    }
+    const user = await requireUser(event)
 
     const body = await readBody(event)
     const { messageId, conversationId, model } = resumeSchema.parse(body)
 
-    // Verify the message exists and is incomplete
-    const incompleteMessage = await db.select().from(messages)
-      .where(eq(messages.id, messageId))
+    // Reject unknown models before doing any work or opening a stream.
+    const resolved = resolveProvider(model)
+
+    // Ownership: the conversation must belong to the authenticated user.
+    await getOwnedConversation(conversationId, user.id)
+
+    // The message must exist, be incomplete, and belong to this conversation.
+    const incompleteRows = await db.select().from(messages)
+      .where(and(eq(messages.id, messageId), eq(messages.conversationId, conversationId)))
       .limit(1)
 
-    if (!incompleteMessage.length || incompleteMessage[0].status !== 'incomplete') {
+    if (!incompleteRows.length || incompleteRows[0].status !== 'incomplete') {
       throw createError({
         statusCode: 400,
         statusMessage: 'Message not found or not resumable'
       })
     }
+    const incompleteMessage = incompleteRows[0]
 
-    // Get conversation history up to this message
+    // Conversation history up to (but not including) the incomplete message.
     const history = await db.select().from(messages)
       .where(eq(messages.conversationId, conversationId))
       .orderBy(asc(messages.createdAt))
 
-    // Find the incomplete message index
     const incompleteIndex = history.findIndex(msg => msg.id === messageId)
     if (incompleteIndex === -1) {
       throw createError({
@@ -71,165 +77,223 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    // Use conversation history up to (but not including) the incomplete message
-    const chatMessages: ChatMessage[] = history.slice(0, incompleteIndex).map((msg: any) => ({
+    const baseMessages: ChatMessage[] = history.slice(0, incompleteIndex).map((msg) => ({
       role: msg.role as 'user' | 'assistant',
       content: msg.content
     }))
 
-    // Create a continuation prompt that asks the LLM to continue from the partial content
-    const partialContent = incompleteMessage[0].content
+    // Ask the model to continue from where the partial response stopped.
+    const partialContent = incompleteMessage.content
     const lastSentence = partialContent.split(/[.!?]/).pop()?.trim() || ''
-    
-    // Add a special continuation message
-    chatMessages.push({
+    baseMessages.push({
       role: 'user',
       content: `Please continue your previous response exactly where you left off. Your response was cut off mid-way at: "${lastSentence}". Continue from exactly where you stopped, without repeating what you already wrote. Continue seamlessly as if you never stopped.`
     })
 
-    // Update message status to streaming
+    const chatMessages = coalesceRoles(baseMessages)
+
+    // Mark the message as streaming again.
     await db.update(messages)
       .set({ status: 'streaming' })
       .where(eq(messages.id, messageId))
 
-    console.log('🔄 Resuming generation for message:', messageId, 'from', partialContent.length, 'characters')
+    console.log('🔄 Resuming generation for message:', messageId, 'via', resolved.provider, 'from', partialContent.length, 'characters')
 
-    // Set up streaming response (same as original chat endpoint)
     setHeader(event, 'Content-Type', 'text/stream')
     setHeader(event, 'Cache-Control', 'no-cache')
     setHeader(event, 'Connection', 'keep-alive')
 
-    // Check if client disconnected
     let isAborted = false
-    
-    event.node.req.on('close', () => {
-      if (!isAborted) {
-        isAborted = true
-        console.log('🛑 Client disconnected during resume')
-      }
-    })
-    
-    event.node.req.on('aborted', () => {
-      if (!isAborted) {
-        isAborted = true
-        console.log('🛑 Resume request aborted by client')
-      }
-    })
+    event.node.req.on('close', () => { isAborted = true })
+    event.node.req.on('aborted', () => { isAborted = true })
 
     const stream = new ReadableStream({
       async start(controller) {
-        let fullResponse = incompleteMessage[0].content // Start with existing content
+        let fullResponse = incompleteMessage.content // Start with existing content
+
+        const pushContent = (text: string) => {
+          if (!text) return
+          fullResponse += text
+          if (isAborted) return
+          try {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content: text })}\n\n`))
+          } catch (e) {
+            if ((e as Error)?.message?.includes('closed')) {
+              isAborted = true
+            } else {
+              throw e
+            }
+          }
+        }
 
         if (isAborted) {
-          console.log('🛑 Connection lost before resume, aborting')
           controller.close()
           return
         }
 
-        try {
-          const resolved = resolveProvider(model)
-
-          if (resolved.provider === 'openai') {
-            const openai = new OpenAI({
-              apiKey: config.openaiApiKey
-            })
-
-            console.log('🔄 Resuming OpenAI generation from:', fullResponse.length + ' characters')
-
-            const openaiAbortController = new AbortController()
-            
-            const abortInterval = setInterval(() => {
-              if (isAborted) {
-                console.log('🛑 Aborting resumed OpenAI request')
-                openaiAbortController.abort()
-                clearInterval(abortInterval)
-              }
-            }, 50)
-
-            const stream = await openai.chat.completions.create({
-              model,
-              messages: chatMessages,
-              stream: true
-            }, {
-              signal: openaiAbortController.signal
-            }).catch((error) => {
-              clearInterval(abortInterval)
-              if (error.name === 'AbortError') {
-                console.log('🛑 Resumed OpenAI request aborted')
-                return null
-              }
-              throw error
-            })
-
+        const abortController = new AbortController()
+        const abortInterval = setInterval(() => {
+          if (isAborted) {
+            abortController.abort()
             clearInterval(abortInterval)
-            
-            if (!stream) {
-              console.log('🛑 Resumed OpenAI request was aborted')
-              return
+          }
+        }, 50)
+
+        try {
+          if (resolved.provider === 'openai') {
+            const openai = new OpenAI({ apiKey: config.openaiApiKey })
+            const completion = await openai.chat.completions.create({
+              model: resolved.apiModel,
+              messages: chatMessages as any,
+              stream: true
+            }, { signal: abortController.signal })
+            for await (const chunk of completion) {
+              if (isAborted) break
+              pushContent(chunk.choices[0]?.delta?.content || '')
             }
 
-            for await (const chunk of stream) {
-              if (isAborted) {
-                console.log('🛑 Stopping resumed OpenAI stream')
-                break
-              }
+          } else if (resolved.provider === 'openrouter') {
+            const orApiKey = config.openrouterApiKey
+            if (!orApiKey) throw new Error('OpenRouter API key not configured. Set OPENROUTER_API_KEY in your environment.')
+            const openrouter = new OpenAI({ apiKey: orApiKey, baseURL: 'https://openrouter.ai/api/v1' })
+            const completion = await openrouter.chat.completions.create({
+              model: resolved.apiModel,
+              messages: chatMessages as any,
+              stream: true
+            }, { signal: abortController.signal })
+            for await (const chunk of completion) {
+              if (isAborted) break
+              pushContent(chunk.choices[0]?.delta?.content || '')
+            }
 
-              const content = chunk.choices[0]?.delta?.content || ''
-              
-              if (content) {
-                fullResponse += content
-                try {
-                  controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
-                } catch (e) {
-                  if ((e as Error)?.message?.includes('closed')) {
-                    console.log('🛑 Stream closed during resume')
-                    break
-                  }
-                  throw e
-                }
-              }
+          } else if (resolved.provider === 'groq') {
+            const groq = new Groq({ apiKey: config.groqApiKey })
+            const completion = await groq.chat.completions.create({
+              model: resolved.apiModel,
+              messages: chatMessages as any,
+              stream: true
+            }, { signal: abortController.signal })
+            for await (const chunk of completion) {
+              if (isAborted) break
+              pushContent(chunk.choices[0]?.delta?.content || '')
             }
 
           } else if (resolved.provider === 'anthropic') {
-            console.log('🔄 Claude resume not yet implemented')
+            const anthropic = new Anthropic({ apiKey: config.anthropicApiKey })
+            const completion = await anthropic.messages.create({
+              model: resolved.apiModel,
+              max_tokens: 4096,
+              messages: chatMessages as any,
+              stream: true
+            }, { signal: abortController.signal })
+            for await (const chunk of completion) {
+              if (isAborted) break
+              if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+                pushContent(chunk.delta.text)
+              }
+            }
+
           } else if (resolved.provider === 'google') {
-            console.log('🔄 Gemini resume not yet implemented')
-          } else if (resolved.provider === 'openrouter') {
-            console.log('🔄 OpenRouter resume not yet implemented')
-          } else {
-            console.log('🔄 Groq resume not yet implemented')
-          }
+            const apiKey = config.geminiApiKey
+            if (!apiKey) throw new Error('Missing Gemini API key')
 
-          // Update the message with final content and status
-          if (fullResponse.trim()) {
-            await db.update(messages)
-              .set({ 
-                content: fullResponse,
-                status: isAborted ? 'incomplete' : 'complete'
+            const contents = chatMessages.map(m => ({
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text: m.content }]
+            }))
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${resolved.apiModel}:streamGenerateContent?key=${apiKey}`
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal: abortController.signal,
+              body: JSON.stringify({
+                contents,
+                generationConfig: { maxOutputTokens: 2048, temperature: 0.9, topP: 0.95 }
               })
-              .where(eq(messages.id, messageId))
+            })
 
-            if (isAborted) {
-              console.log('💾 Updated resumed partial response:', fullResponse.length + ' characters')
-            } else {
-              console.log('💾 Completed resumed generation')
-              
-              try {
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
-                  conversationId,
-                  done: true 
-                })}\n\n`))
-              } catch (e) {
-                console.log('🛑 Stream closed while sending completion')
+            if (!response.ok || !response.body) {
+              const errorText = await response.text()
+              throw new Error(`Gemini API error: ${response.status} ${response.statusText} ${errorText}`)
+            }
+
+            const reader = response.body.getReader()
+            const decoder = new TextDecoder()
+            let buffer = ''
+
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done || isAborted) break
+              buffer += decoder.decode(value, { stream: true })
+
+              let objStartIndex = buffer.indexOf('{')
+              while (objStartIndex !== -1) {
+                let braceCount = 0
+                let objEndIndex = -1
+                let inString = false
+                for (let i = objStartIndex; i < buffer.length; i++) {
+                  if (buffer[i] === '"' && (i === 0 || buffer[i - 1] !== '\\')) inString = !inString
+                  if (!inString) {
+                    if (buffer[i] === '{') braceCount++
+                    else if (buffer[i] === '}') braceCount--
+                  }
+                  if (braceCount === 0) { objEndIndex = i; break }
+                }
+
+                if (objEndIndex !== -1) {
+                  const jsonStr = buffer.substring(objStartIndex, objEndIndex + 1)
+                  buffer = buffer.substring(objEndIndex + 1)
+                  try {
+                    const data = JSON.parse(jsonStr)
+                    pushContent(data?.candidates?.[0]?.content?.parts?.[0]?.text || '')
+                  } catch {
+                    // Partial object; wait for more data.
+                  }
+                  objStartIndex = buffer.indexOf('{')
+                } else {
+                  break
+                }
               }
             }
           }
-          
+
+          clearInterval(abortInterval)
+
+          await db.update(messages)
+            .set({
+              content: fullResponse,
+              status: isAborted ? 'incomplete' : 'complete'
+            })
+            .where(eq(messages.id, messageId))
+
+          if (!isAborted) {
+            try {
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ conversationId, done: true })}\n\n`))
+            } catch {
+              // client gone
+            }
+          }
+
         } catch (error) {
-          console.error('❌ Resume error:', error)
-          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
-            error: 'Failed to resume generation' 
-          })}\n\n`))
+          clearInterval(abortInterval)
+
+          const aborted = isAborted || (error instanceof Error && error.name === 'AbortError')
+          if (aborted) {
+            await db.update(messages)
+              .set({ content: fullResponse, status: 'incomplete' })
+              .where(eq(messages.id, messageId))
+          } else {
+            console.error('❌ Resume error:', error)
+            await db.update(messages)
+              .set({ content: fullResponse, status: 'error' })
+              .where(eq(messages.id, messageId))
+            try {
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ error: 'Failed to resume generation' })}\n\n`))
+            } catch {
+              // client gone
+            }
+          }
         } finally {
           controller.close()
         }
@@ -247,4 +311,4 @@ export default defineEventHandler(async (event) => {
     }
     throw error
   }
-}) 
+})

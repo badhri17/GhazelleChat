@@ -124,8 +124,10 @@ async function handleSubmit() {
 }
 
 onMounted(() => {
-  // Pre-fill demo credentials for easy testing
-  email.value = 'demo@local.test'
-  password.value = 'demo123'
+  // Pre-fill demo credentials only in development for easy testing.
+  if (import.meta.dev) {
+    email.value = 'demo@local.test'
+    password.value = 'demo123'
+  }
 })
 </script> 

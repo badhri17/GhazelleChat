@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden relative">
 
-    <ScrollArea class="flex-1 p-4 min-h-0">
+    <ScrollArea ref="scrollAreaRef" class="flex-1 p-4 min-h-0">
       <div class="space-y-4 max-w-4xl mx-auto pb-24">
         <div v-if="messages.length === 0 && initializing" class="text-center py-12">
           <!-- <Icon icon="lucide:message-circle" class="w-12 h-12 mx-auto text-foreground mb-4" />
@@ -85,6 +85,18 @@ const isLoading = ref(false)
 const isStreaming = ref(false)
 const initializing = ref(true)
 const textareaRef = ref()
+const scrollAreaRef = ref<any>(null)
+
+// Track the in-flight chat stream so it can be cancelled on unmount.
+let activeReader: ReadableStreamDefaultReader<Uint8Array> | null = null
+let activeAbortController: AbortController | null = null
+
+function cancelActiveStream() {
+  try { activeAbortController?.abort() } catch { /* noop */ }
+  try { activeReader?.cancel() } catch { /* noop */ }
+  activeReader = null
+  activeAbortController = null
+}
 
 const pollingInterval = ref<NodeJS.Timeout | null>(null)
 
@@ -180,10 +192,15 @@ async function sendMessage(message: string, attachments: any[] = []) {
   const prompt = message
   inputMessage.value = '' 
   
+  cancelActiveStream()
+  const abortController = new AbortController()
+  activeAbortController = abortController
+
   try {
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: abortController.signal,
       body: JSON.stringify({
         message: prompt,
         conversationId: currentConversationId,
@@ -196,8 +213,9 @@ async function sendMessage(message: string, attachments: any[] = []) {
     if (!response.body) {
       throw new Error('No response body')
     }
-    
+
     const reader = response.body.getReader()
+    activeReader = reader
     const decoder = new TextDecoder()
 
     while (true) {
@@ -259,16 +277,23 @@ async function sendMessage(message: string, attachments: any[] = []) {
       }
     }
   } catch (error) {
-    console.error('Chat error:', error)
-    const streamingMsg = messages.value.find(m => m.status === 'streaming')
-    if (streamingMsg) {
-      const msgIndex = messages.value.findIndex(m => m.id === streamingMsg.id)
-      if (msgIndex !== -1) {
-        messages.value[msgIndex].content += `\n\n**Error:** ${error instanceof Error ? error.message : 'An unknown error occurred.'}`
-        messages.value[msgIndex].status = 'incomplete'
+    // Ignore aborts triggered by navigating away or starting a new stream.
+    if (!abortController.signal.aborted) {
+      console.error('Chat error:', error)
+      const streamingMsg = messages.value.find(m => m.status === 'streaming')
+      if (streamingMsg) {
+        const msgIndex = messages.value.findIndex(m => m.id === streamingMsg.id)
+        if (msgIndex !== -1) {
+          messages.value[msgIndex].content += `\n\n**Error:** ${error instanceof Error ? error.message : 'An unknown error occurred.'}`
+          messages.value[msgIndex].status = 'error'
+        }
       }
     }
   } finally {
+    if (activeAbortController === abortController) {
+      activeReader = null
+      activeAbortController = null
+    }
     isLoading.value = false
     if (!isStreaming.value && assistantMessageId) {
       const idxMsg = messages.value.findIndex(m => m.id === assistantMessageId)
@@ -278,11 +303,12 @@ async function sendMessage(message: string, attachments: any[] = []) {
 }
 
 function scrollToBottom(behavior: 'smooth' | 'auto' = 'auto') {
-  const scrollArea = document.querySelector('div[data-slot="scroll-area"]')
-  if (scrollArea) {
-      window.scrollTo({
-      top: scrollArea.scrollHeight,
-      behavior: behavior
+  const root = scrollAreaRef.value?.$el as HTMLElement | undefined
+  const viewport = root?.querySelector('[data-slot="scroll-area-viewport"]') as HTMLElement | null
+  if (viewport) {
+    viewport.scrollTo({
+      top: viewport.scrollHeight,
+      behavior
     })
   }
 }
@@ -373,6 +399,9 @@ if (process.client) {
     }
   }
 
-  onUnmounted(stopPolling)
+  onUnmounted(() => {
+    stopPolling()
+    cancelActiveStream()
+  })
 }
 </script> 

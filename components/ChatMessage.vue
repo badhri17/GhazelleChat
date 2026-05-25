@@ -101,6 +101,14 @@
           Generation was stopped
         </span>
       </div>
+
+      <!-- Status indicator for failed messages -->
+      <div v-if="message.status === 'error' && !isStreaming" class="mt-2">
+        <span class="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+          <AlertTriangle class="w-3 h-3" />
+          Generation failed
+        </span>
+      </div>
     </div>
 
   </div>
@@ -113,7 +121,7 @@ import { computed, ref, watch } from 'vue'
 import { marked } from 'marked'
 import { useDebounceFn } from '@vueuse/core'
 import { useMarkdown } from '~/composables/useMarkdown'
-import { FileText, Loader2, Copy, Wifi, PauseCircle } from 'lucide-vue-next'
+import { FileText, Loader2, Copy, Wifi, PauseCircle, AlertTriangle } from 'lucide-vue-next'
 
 const emit = defineEmits(['image-loaded'])
 
